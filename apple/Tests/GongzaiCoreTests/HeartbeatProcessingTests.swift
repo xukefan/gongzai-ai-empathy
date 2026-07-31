@@ -1,0 +1,71 @@
+import Foundation
+import XCTest
+@testable import GongzaiCore
+
+final class HeartbeatProcessingTests: XCTestCase {
+    func testFiltersInvalidSamplesAndCalculatesAverage() throws {
+        let now = Date()
+        let samples = [
+            HeartRateSample(bpm: 80, capturedAt: now),
+            HeartRateSample(bpm: 82, capturedAt: now),
+            HeartRateSample(bpm: 500, capturedAt: now)
+        ]
+
+        XCTAssertEqual(
+            try HeartbeatProcessing.averageBPM(from: samples),
+            81
+        )
+    }
+
+    func testConvertsBPMToMilliseconds() throws {
+        XCTAssertEqual(
+            try HeartbeatProcessing.intervalMS(forBPM: 60),
+            1_000
+        )
+        XCTAssertEqual(
+            try HeartbeatProcessing.intervalMS(forBPM: 80),
+            750
+        )
+        XCTAssertEqual(
+            try HeartbeatProcessing.intervalMS(forBPM: 100),
+            600
+        )
+    }
+
+    func testBuildsCanonicalPacket() throws {
+        let start = Date(timeIntervalSince1970: 100)
+        let packet = try HeartbeatProcessing.makePacket(
+            senderID: "user-a",
+            receiverID: "user-b",
+            samples: [
+                HeartRateSample(bpm: 78, capturedAt: start),
+                HeartRateSample(
+                    bpm: 82,
+                    capturedAt: start.addingTimeInterval(1)
+                )
+            ],
+            startedAt: start,
+            endedAt: start.addingTimeInterval(10)
+        )
+
+        XCTAssertEqual(packet.averageBPM, 80)
+        XCTAssertEqual(packet.durationMS, 10_000)
+        XCTAssertTrue(packet.beatIntervalsMS.allSatisfy { $0 == 750 })
+        XCTAssertEqual(packet.schemaVersion, 1)
+    }
+
+    func testMapsPacketToExistingBackendContract() {
+        let packet = HeartbeatPacket(
+            senderID: "user-a",
+            receiverID: "user-b",
+            averageBPM: 82.4,
+            beatIntervalsMS: [728, 735],
+            recordedAt: Date(timeIntervalSince1970: 100),
+            durationMS: 1_463
+        )
+
+        let request = BackendHeartbeatSendRequest(packet: packet)
+        XCTAssertEqual(request.bpm, 82)
+        XCTAssertEqual(request.pattern, "728,735")
+    }
+}

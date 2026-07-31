@@ -120,29 +120,22 @@ gongzai-ai-empathy/
 ├── apple/
 │   ├── ios/
 │   ├── watch/
-│   └── shared/
+│   ├── Sources/GongzaiCore/
+│   └── Tests/
 ├── pendant/
 │   ├── src/
 │   ├── include/
-│   ├── config/
+│   ├── tests/
 │   └── README.md
 ├── backend/
-│   ├── app/
-│   ├── migrations/
-│   ├── tests/
+│   ├── main.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── tuya_client.py
 │   └── .env.example
-├── ai/
-│   ├── workflows/
-│   ├── prompts/
-│   ├── evaluation/
-│   └── README.md
 ├── docs/
 │   ├── architecture/
-│   ├── api/
-│   ├── hardware/
-│   ├── product/
-│   ├── research/
-│   └── testing/
+│   └── reviews/
 └── README.md
 ```
 
@@ -333,11 +326,20 @@ AI 禁止诊断情绪或疾病、评价关系质量、编造记忆、自动发�
 
 ## 开发环境
 
-- Apple：macOS、Xcode、Swift、SwiftUI、HealthKit、WatchConnectivity、Speech；
+- Apple：macOS、Xcode、Swift、SwiftUI、HealthKit、WatchConnectivity、AVFoundation；
 - 挂件：T5AI-Board、TuyaOpen/TuyaOS、C、Wi-Fi、BLE；
 - 后端：Python、FastAPI、SQLAlchemy、Alembic、PostgreSQL/SQLite；
 - AI：Tuya AI Agent 或模型 API、结构化 JSON 输出、自动评估；
-- 协作：GitHub 私有仓库、Issues、Pull Requests。
+- 协作：GitHub 公开仓库、Issues、Pull Requests；密钥和真实用户数据一律不入库。
+
+## 当前实现状态
+
+- Apple 端已建立共享数据模型、BPM 计算、现有后端适配层、Watch 心率与原声采集骨架、WatchConnectivity 和 iPhone 上传入口；
+- 挂件端已建立可在电脑测试的 LED 心跳算法与交互状态机；
+- 挂件核心目前不依赖具体 T5AI SDK，取得开发板后通过 HAL 适配 TuyaOpen、LED、音频和按键；
+- 后端提交审查见 [XWR-666 后端提交审查](docs/reviews/xwr-666-backend-review.md)；
+- 成员 1 当前交付与真机待办见 [成员 1 第一周实现记录](docs/tasks/member-1-week-1.md)；
+- Apple 平台代码必须在安装完整 Xcode 的 Mac 上用真机完成最终验证。
 
 ## 里程碑
 

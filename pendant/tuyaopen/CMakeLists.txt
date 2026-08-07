@@ -14,6 +14,7 @@ list(APPEND APP_SRCS
 )
 
 set(APP_INC
+    "${APP_PATH}/src"
     "${APP_PATH}/../include"
     "$ENV{OPEN_SDK_ROOT}/examples/multimedia/audio_player/tts/src"
 )

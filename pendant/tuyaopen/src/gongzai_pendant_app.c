@@ -10,6 +10,7 @@
 #include "gongzai/pendant_controller.h"
 #include "lv_vendor.h"
 #include "lvgl.h"
+#include "pendant_recorder.h"
 #include "svc_ai_player.h"
 #include "tal_api.h"
 #include "tdl_audio_manage.h"
@@ -24,7 +25,6 @@
 #define HEARTBEAT_TICK_MS          20U
 #define PHYSICAL_LED_ON_LEVEL      48U
 #define TEST_AUDIO_REF             "embedded://hello-tuya"
-#define TEST_RECORDING_PATH        "/tmp/gongzai-reply.pcm"
 
 typedef enum {
     PENDING_BUTTON_NONE = 0,
@@ -53,6 +53,7 @@ static uint32_t sg_event_sequence = 0U;
 static uint8_t sg_last_led_level = 0U;
 static bool sg_physical_led_on = false;
 static bool sg_audio_ready = false;
+static uint32_t sg_last_reply_size = 0U;
 
 static const char *pendant_state_name(pendant_state_t state)
 {
@@ -137,19 +138,6 @@ static void pendant_set_led_brightness(uint8_t level)
     lv_obj_set_style_shadow_opa(sg_pulse_orb, opacity, LV_PART_MAIN);
 }
 
-static void audio_frame_callback(
-    TDL_AUDIO_FRAME_FORMAT_E type,
-    TDL_AUDIO_STATUS_E status,
-    uint8_t *data,
-    uint32_t len
-)
-{
-    (void)type;
-    (void)status;
-    (void)data;
-    (void)len;
-}
-
 static OPERATE_RET pendant_audio_init(void)
 {
     OPERATE_RET rt;
@@ -169,10 +157,7 @@ static OPERATE_RET pendant_audio_init(void)
         return rt;
     }
 
-    TUYA_CALL_ERR_RETURN(tdl_audio_open(
-        sg_audio_handle,
-        audio_frame_callback
-    ));
+    TUYA_CALL_ERR_RETURN(pendant_recorder_open(sg_audio_handle));
     TUYA_CALL_ERR_RETURN(tuya_ai_player_service_init(&player_cfg));
     TUYA_CALL_ERR_RETURN(tuya_ai_player_create(
         AI_PLAYER_MODE_FOREGROUND,
@@ -223,18 +208,41 @@ static bool pendant_play_audio(const char *audio_ref)
 
 static bool pendant_start_recording(const char *event_id)
 {
-    PR_NOTICE("Recording placeholder started for event: %s", event_id);
+    OPERATE_RET rt;
+
+    if (!sg_audio_ready || event_id == NULL) {
+        return false;
+    }
+
+    TUYA_CALL_ERR_LOG(tuya_ai_playlist_stop(sg_playlist));
+    TUYA_CALL_ERR_LOG(tdl_audio_play_stop(sg_audio_handle));
+    if (!pendant_recorder_start()) {
+        PR_ERR("Unable to start reply recording for event: %s", event_id);
+        return false;
+    }
+
+    PR_NOTICE("Recording reply for event: %s", event_id);
     return true;
 }
 
 static bool pendant_stop_recording(char *path, size_t capacity)
 {
-    if (path == NULL || capacity <= strlen(TEST_RECORDING_PATH)) {
+    if (path == NULL || capacity <= strlen(PENDANT_RECORDER_WAV_URI)) {
         return false;
     }
 
-    (void)strcpy(path, TEST_RECORDING_PATH);
-    PR_NOTICE("Recording placeholder stopped: %s", path);
+    if (!pendant_recorder_stop()) {
+        return false;
+    }
+
+    (void)strcpy(path, PENDANT_RECORDER_WAV_URI);
+    sg_last_reply_size = pendant_recorder_wav_size();
+    PR_NOTICE(
+        "Reply recording stopped: %s, %u bytes, %u ms",
+        path,
+        sg_last_reply_size,
+        pendant_recorder_duration_ms()
+    );
     return true;
 }
 
@@ -243,11 +251,29 @@ static bool pendant_upload_recording(
     const char *recording_path
 )
 {
+    const uint8_t *wav_data = pendant_recorder_wav_data();
+    uint32_t wav_size = pendant_recorder_wav_size();
+
+    if (event_id == NULL || recording_path == NULL ||
+        strcmp(recording_path, PENDANT_RECORDER_WAV_URI) != 0 ||
+        wav_data == NULL || wav_size <= 44U) {
+        PR_ERR("Reply WAV asset is unavailable for upload");
+        return false;
+    }
+
     PR_NOTICE(
-        "Upload placeholder accepted: event=%s path=%s",
+        "Upload-ready WAV asset: event=%s path=%s bytes=%u peak=%u",
         event_id,
-        recording_path
+        recording_path,
+        wav_size,
+        pendant_recorder_peak_amplitude()
     );
+
+    /*
+     * Week 1 intentionally stops at a verified upload-ready memory asset.
+     * Member 2 will provide the authenticated HTTP endpoint in the next
+     * integration milestone. Never print or persist the private voice bytes.
+     */
     return true;
 }
 
@@ -278,11 +304,20 @@ static void update_ui_from_controller(void)
     }
 
     if (sg_event_label != NULL) {
-        lv_label_set_text_fmt(
-            sg_event_label,
-            "EVENT  %s",
-            sg_controller.has_active_event ? sg_controller.event_id : "--"
-        );
+        if (sg_last_reply_size > 0U) {
+            lv_label_set_text_fmt(
+                sg_event_label,
+                "EVENT  %s\nLAST REPLY  %u bytes",
+                sg_controller.has_active_event ? sg_controller.event_id : "--",
+                sg_last_reply_size
+            );
+        } else {
+            lv_label_set_text_fmt(
+                sg_event_label,
+                "EVENT  %s",
+                sg_controller.has_active_event ? sg_controller.event_id : "--"
+            );
+        }
     }
 
     if (sg_reply_button_label != NULL) {

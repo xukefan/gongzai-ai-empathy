@@ -42,27 +42,30 @@
 - [ ] 验证 Watch 原声文件可靠传给 iPhone；
 - [ ] 用真实后端地址验证 iPhone 心率与音频上传；
 - [x] 在 T5AI 上实现屏幕灯光、板载 LED、扬声器、按钮和时钟 HAL；
-- [ ] 在 T5AI 上实现真实麦克风录音和音频文件封装；
+- [x] 在 T5AI 上实现真实麦克风录音和内存 WAV 封装；
 - [ ] 接入 TuyaOpen Wi-Fi 配网和规范 DP；
 - [x] 使用 60、80、100 BPM 检查三种 LED 节奏；
 - [x] 验证挂件本地播放测试原声；
-- [ ] 验证按住录音、松开生成本地文件；
+- [ ] 真机按住录音、松开后确认 WAV 字节数、时长和声音峰值；
 - [ ] 与成员 2 联调明确 `event_id` 的确认和回复链路。
 
 当前 T5AI 固件位于 `pendant/tuyaopen/`，并已在 TUYA_T5AI_BOARD 3.5 英寸触摸屏版本上完成编译和烧录。串口日志确认：
 
 - LCD、GT1151 触摸驱动和 LVGL 启动成功；
 - 音频编解码器、AEC 和 AI Player 启动成功；
+- 板载麦克风以 16 kHz、16-bit、单声道 PCM 启动，15 秒录音缓冲分配成功；
 - 默认 `demo-0001` 以 80 BPM 运行；
 - 屏幕与板载 LED 按 BPM 持续脉动；
 - 触摸 `PLAY VOICE` 后 MP3 解码和扬声器播放完成；
 - `I FELT IT` 可把事件状态切换为 `ACKNOWLEDGED`；
 - 60/80/100 BPM 按钮可创建带唯一 `event_id` 的新演示事件。
 
+录音实现不会把私密原声写入 Flash 或文件系统。松开回复按钮后，固件在 PSRAM 中生成标准 WAV，并通过 `memory://gongzai-reply.wav` 暴露给后续 HTTPS 上传层。当前全量固件已编译、烧录并确认麦克风初始化；最后一次人工按住录音验收仍需在开发板上完成。
+
 ## 暂时阻塞
 
 - 当前执行环境只有 Command Line Tools，没有完整 Xcode 和 Apple 平台 SDK，无法代替真机验证 HealthKit、AVFoundation 与 WatchConnectivity；
-- T5AI 的真实麦克风录音文件封装和 HTTPS 上传尚未接入；当前录音与上传 HAL 是显式占位实现，只用于验证交互状态机；
+- T5AI 的录音与 WAV 封装已经接入；真实 HTTPS 上传仍等待成员 2 提供鉴权接口；
 - Tuya 产品 PID、授权信息和最终 DP 尚未确定，暂未连接设备云；
 - 现有后端接口会重新生成 `event_id`，且挂件回应按“最近事件”关联，不满足端到端事件一致性，联调前需要成员 2 修正。
 

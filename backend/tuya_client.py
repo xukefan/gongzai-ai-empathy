@@ -13,6 +13,12 @@ class TuyaClient:
         self.endpoint = Config.TUYA_API_ENDPOINT
         self.token = None
         self.token_expire = 0
+
+    def _require_credentials(self):
+        if not self.access_id or not self.access_secret:
+            raise RuntimeError(
+                "TUYA_ACCESS_ID and TUYA_ACCESS_SECRET must be provided via environment variables"
+            )
     
     def _get_sign(self, method, path, body=""):
         t = str(int(time.time() * 1000))
@@ -26,6 +32,7 @@ class TuyaClient:
         return sign, t, nonce
     
     def _get_token(self):
+        self._require_credentials()
         if self.token and time.time() < self.token_expire:
             return self.token
         
@@ -46,7 +53,7 @@ class TuyaClient:
         if data.get("success"):
             self.token = data["result"]["access_token"]
             self.token_expire = time.time() + data["result"]["expire_time"] - 60
-            return self.tokenN
+            return self.token
         else:
             raise Exception(f"涂鸦获取Token失败: {data}")
     

@@ -120,29 +120,23 @@ gongzai-ai-empathy/
 ├── apple/
 │   ├── ios/
 │   ├── watch/
-│   └── shared/
+│   ├── Sources/GongzaiCore/
+│   └── Tests/
 ├── pendant/
 │   ├── src/
 │   ├── include/
-│   ├── config/
+│   ├── tests/
+│   ├── tuyaopen/             # 可直接编译烧录的 T5AI 真机程序
 │   └── README.md
 ├── backend/
-│   ├── app/
-│   ├── migrations/
-│   ├── tests/
+│   ├── main.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── tuya_client.py
 │   └── .env.example
-├── ai/
-│   ├── workflows/
-│   ├── prompts/
-│   ├── evaluation/
-│   └── README.md
 ├── docs/
 │   ├── architecture/
-│   ├── api/
-│   ├── hardware/
-│   ├── product/
-│   ├── research/
-│   └── testing/
+│   └── reviews/
 └── README.md
 ```
 
@@ -333,11 +327,23 @@ AI 禁止诊断情绪或疾病、评价关系质量、编造记忆、自动发�
 
 ## 开发环境
 
-- Apple：macOS、Xcode、Swift、SwiftUI、HealthKit、WatchConnectivity、Speech；
+- Apple：macOS、Xcode、Swift、SwiftUI、HealthKit、WatchConnectivity、AVFoundation；
 - 挂件：T5AI-Board、TuyaOpen/TuyaOS、C、Wi-Fi、BLE；
 - 后端：Python、FastAPI、SQLAlchemy、Alembic、PostgreSQL/SQLite；
 - AI：Tuya AI Agent 或模型 API、结构化 JSON 输出、自动评估；
-- 协作：GitHub 私有仓库、Issues、Pull Requests。
+- 协作：GitHub 公开仓库、Issues、Pull Requests；密钥和真实用户数据一律不入库。
+
+## 当前实现状态
+
+- Apple 端已建立共享数据模型、BPM 计算、现有后端适配层、Watch 心率与原声采集骨架、WatchConnectivity 和 iPhone 上传入口；
+- 挂件端已建立可在电脑测试的 LED 心跳算法与交互状态机；
+- T5AI 真机适配已跑通 3.5 英寸触摸屏、板载 LED、板载扬声器和物理按键；
+- 真机可选择 60/80/100 BPM，屏幕光团与板载 LED 按对应节奏脉动，并可播放本地原声测试音频、触摸确认和演示回复状态流；
+- T5AI 板载麦克风已经接入：用户按住时采集 16 kHz PCM，松开后在 PSRAM 中生成最长 15 秒的标准 WAV；
+- 挂件 Wi-Fi/Tuya DP 和真实服务器上传仍待接入，当前 WAV 已达到可上传状态但不会伪装成已完成云端传输；
+- 后端提交审查见 [XWR-666 后端提交审查](docs/reviews/xwr-666-backend-review.md)；
+- 成员 1 当前交付与真机待办见 [成员 1 第一周实现记录](docs/tasks/member-1-week-1.md)；
+- Apple 平台代码必须在安装完整 Xcode 的 Mac 上用真机完成最终验证。
 
 ## 里程碑
 
@@ -362,9 +368,9 @@ AI 禁止诊断情绪或疾病、评价关系质量、编造记忆、自动发�
 - [ ] Watch 采集并显示真实心率；
 - [ ] Watch 将结构化 BPM 发送给 iPhone；
 - [ ] 验证 Watch 原声录制并传给 iPhone；
-- [ ] T5AI 输入 60/80/100 BPM 时呈现不同 LED 脉动；
-- [ ] T5AI 扬声器播放一段本地测试音频；
-- [ ] 按住按钮开始录音、松开结束并生成本地音频文件。
+- [x] T5AI 输入 60/80/100 BPM 时呈现不同 LED 脉动；
+- [x] T5AI 扬声器播放一段本地测试音频；
+- [ ] 真机按住按钮开始录音、松开后确认内存 WAV 的字节数、时长和声音峰值。
 
 ### 成员 2
 

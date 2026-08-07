@@ -22,6 +22,7 @@ xcuserdata/
 build/
 build-*/
 cmake-build-*/
+dist/
 *.elf
 *.bin
 *.map

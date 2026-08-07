@@ -25,21 +25,31 @@ cmake --build pendant/build
 ctest --test-dir pendant/build --output-on-failure
 ```
 
-## T5AI 适配层待接入
+## T5AI 真机程序
 
-获得开发板和 TuyaOpen SDK 后，需要为 `pendant_hal_t` 实现：
+`tuyaopen/` 已把硬件无关核心接入真实 TUYA_T5AI_BOARD。当前实现：
+
+- 3.5 英寸 ILI9488 + GT1151 触摸屏界面；
+- 屏幕光团按 60/80/100 BPM 柔和脉动；
+- 板载 GPIO LED 按同一 BPM 亮灭；
+- 板载扬声器播放 TuyaOpen 官方内嵌 MP3，验证原声播放链路；
+- 屏幕和物理按键确认“已收到”；
+- 屏幕长按与物理按键长按验证录音、上传、回复状态流；
+- 事件始终携带明确 `event_id`。
+
+适配状态：
 
 | 接口 | T5AI 上的职责 |
 |---|---|
-| `set_led_brightness` | PWM 控制 LED 亮度 |
-| `play_audio` | 下载或读取原声音频并通过扬声器播放 |
-| `start_recording` | 初始化板载麦克风与音频缓存 |
-| `stop_recording` | 封装音频并返回本地临时文件 |
-| `upload_recording` | 通过 HTTPS 上传原声与明确的 `event_id` |
-| `report_state` | 通过涂鸦 DP 上报播放、确认和回复状态 |
-| `now_ms` | 返回系统单调毫秒时钟 |
+| `set_led_brightness` | 已接入屏幕光团和板载 GPIO LED；外接灯环后再换 PWM 驱动 |
+| `play_audio` | 已接入板载扬声器和内存 MP3；网络原声下载待接入 |
+| `start_recording` | 当前为显式占位；板载麦克风待接入 |
+| `stop_recording` | 当前为显式占位；音频文件封装待接入 |
+| `upload_recording` | 当前为显式占位；HTTPS 与服务器鉴权待接入 |
+| `report_state` | 当前写串口日志；涂鸦 DP 上报待接入 |
+| `now_ms` | 已接入 `tal_system_get_millisecond()` |
 
-云端收到新片段时，适配层将 DP/业务消息转换为：
+后续云端收到新片段时，适配层仍按以下方式转换为业务事件：
 
 ```c
 pendant_controller_receive_moment(
@@ -51,7 +61,7 @@ pendant_controller_receive_moment(
 );
 ```
 
-主循环或定时任务每 10～20 ms 调用一次：
+LVGL 定时器每 20 ms 调用一次：
 
 ```c
 pendant_controller_tick(&controller);
@@ -68,4 +78,20 @@ pendant_controller_tick(&controller);
 - 可选实体录音按键；
 - USB 供电。
 
-第一周只要求 LED 本地按输入 BPM 闪烁、按钮/触摸状态机可运行。联网、音频播放和录音在接口确定后逐项接入。
+## 编译与烧录
+
+要求先安装并初始化 TuyaOpen SDK，然后执行：
+
+```bash
+cd /path/to/TuyaOpen
+source ./export.sh
+cd /path/to/gongzai-ai-empathy/pendant/tuyaopen
+
+tos.py build
+tos.py flash -p /dev/cu.usbmodemXXXXXXXXXXXX
+tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
+```
+
+`CMakeLists.txt` 会复用当前 TuyaOpen SDK 自带的 `hello_tuya_16k.c` 作为扬声器测试原声，不把第三方二进制和构建产物提交进仓库。
+
+第一周已完成 LED、屏幕、触摸、按钮和本地音频验证。下一步依次接入真实录音、Wi-Fi/Tuya DP 和 HTTPS 原声任务。

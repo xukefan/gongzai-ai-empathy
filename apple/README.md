@@ -42,10 +42,18 @@ iPhone、Watch 两个 target 选择自己的 Team。
 4. 心率读取、麦克风和 iOS 本地网络用途说明；
 5. iPhone 内仅 Debug 构建可见的 60/80/100 BPM 测试入口。
 
-当前开发阶段两个 App 使用各自 Scheme 分别安装到已配对的 iPhone 与
-Apple Watch。正式 TestFlight/上架前再增加 Watch App 的随 iPhone App
-嵌入与分发配置；这不会影响第一周的真机 HealthKit、录音与
-WatchConnectivity 验证。
+Watch App 已作为 Companion App 嵌入 iPhone App。运行 `GongzaiIOS`
+Scheme 时，Xcode 会构建 iPhone App 及其配套 Watch App，并通过已配对的
+iPhone 尝试安装到 Apple Watch。`GongzaiWatch` Scheme 仍保留，供手表
+被 Xcode 识别后单独调试 HealthKit、录音、触觉和 WatchConnectivity。
+
+真机安装前，需要在 Xcode 中为 iPhone、Watch 两个 Target 选择同一个
+开发团队，并确认两者的 Bundle Identifier 保持配套关系：
+
+```text
+iPhone: io.github.xukefan.gongzai
+Watch:  io.github.xukefan.gongzai.watchkitapp
+```
 
 建议用途说明：
 

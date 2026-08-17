@@ -26,6 +26,8 @@ targets:
       - path: ios
     dependencies:
       - package: GongzaiCore
+      - target: GongzaiWatch
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.xukefan.gongzai

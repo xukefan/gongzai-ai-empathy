@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		157CA4A1BBEF173E43B2172B /* GongzaiWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */; };
 		1AAB5BF50E982571F903F3E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E686E1649BA0F42975BB709D /* ContentView.swift */; };
+		1E807FE5B8EA7DAE8926F4BF /* GongzaiWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E4F148549AF086443FAD69D7 /* GongzaiWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2250C82DED29EF469E669BBB /* GongzaiCore in Frameworks */ = {isa = PBXBuildFile; productRef = 712DA08C63F4C6A62228971A /* GongzaiCore */; };
 		36070E620DD48CC7E39C7E85 /* HeartbeatHapticPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */; };
 		5D8976C9523491DA9626F2FD /* WatchHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB8F735E1094AAE277F354E /* WatchHomeView.swift */; };
@@ -20,6 +21,30 @@
 		F89CAADDB9D73B2DD17F68AE /* GongzaiIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */; };
 		FB8A579177CE901A9CA113F2 /* HealthKitHeartRateRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D8A9FD4DD4EE126F85D5470B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB908AF979323A340D379608 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8FB3580E99A4425120D5188D;
+			remoteInfo = GongzaiWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B32186A6BA91D8B2DE6D47A7 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				1E807FE5B8EA7DAE8926F4BF /* GongzaiWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitHeartRateRecorder.swift; sourceTree = "<group>"; };
@@ -136,10 +161,12 @@
 			buildPhases = (
 				346976BDDF25B32BE7651974 /* Sources */,
 				D15048C5F14401608A2F29CB /* Frameworks */,
+				B32186A6BA91D8B2DE6D47A7 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				51040AE6ADD65B0B790460BF /* PBXTargetDependency */,
 			);
 			name = GongzaiIOS;
 			packageProductDependencies = (
@@ -217,6 +244,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		51040AE6ADD65B0B790460BF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8FB3580E99A4425120D5188D /* GongzaiWatch */;
+			targetProxy = D8A9FD4DD4EE126F85D5470B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		054322E5605261D29B599FEC /* Release */ = {

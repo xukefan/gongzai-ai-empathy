@@ -4,14 +4,30 @@ import GongzaiCore
 
 @MainActor
 final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
-    enum RecorderError: Error {
+    enum RecorderError: LocalizedError {
+        case healthDataUnavailable
         case heartRateUnavailable
         case workoutSessionUnavailable
+        case noHeartRateSamples
+
+        var errorDescription: String? {
+            switch self {
+            case .healthDataUnavailable:
+                return "此设备当前无法使用健康数据"
+            case .heartRateUnavailable:
+                return "无法读取心率数据类型"
+            case .workoutSessionUnavailable:
+                return "心率采集尚未启动"
+            case .noHeartRateSamples:
+                return "尚未读到心率，请贴紧佩戴并等待 8–15 秒"
+            }
+        }
     }
 
     @Published private(set) var currentBPM: Double?
     @Published private(set) var isCapturing = false
-    @Published private(set) var lastError: Error?
+    @Published private(set) var sampleCount = 0
+    @Published private(set) var lastErrorMessage: String?
 
     private let healthStore = HKHealthStore()
     private var workoutSession: HKWorkoutSession?
@@ -20,6 +36,10 @@ final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
     private var startedAt: Date?
 
     func requestAuthorization() async throws {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw RecorderError.healthDataUnavailable
+        }
+
         guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
             throw RecorderError.heartRateUnavailable
         }
@@ -30,7 +50,7 @@ final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
         )
     }
 
-    func startCapture() throws {
+    func startCapture() async throws {
         guard !isCapturing else { return }
 
         let configuration = HKWorkoutConfiguration()
@@ -52,21 +72,34 @@ final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
         let start = Date()
         samples.removeAll(keepingCapacity: true)
         currentBPM = nil
-        lastError = nil
+        sampleCount = 0
+        lastErrorMessage = nil
         startedAt = start
         workoutSession = session
         workoutBuilder = builder
-        isCapturing = true
 
         session.startActivity(with: start)
-        builder.beginCollection(withStart: start) { [weak self] success, error in
-            guard let self else { return }
-            if !success, let error {
-                Task { @MainActor in
-                    self.lastError = error
-                    self.isCapturing = false
+        do {
+            try await withCheckedThrowingContinuation { continuation in
+                builder.beginCollection(withStart: start) { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(
+                            throwing: error ?? RecorderError.workoutSessionUnavailable
+                        )
+                    }
                 }
             }
+            isCapturing = true
+            print("[HealthKit] Heart-rate collection started")
+        } catch {
+            session.end()
+            workoutSession = nil
+            workoutBuilder = nil
+            startedAt = nil
+            lastErrorMessage = error.localizedDescription
+            throw error
         }
     }
 
@@ -87,6 +120,10 @@ final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
         self.workoutBuilder = nil
         self.startedAt = nil
         isCapturing = false
+
+        guard !samples.isEmpty else {
+            throw RecorderError.noHeartRateSamples
+        }
 
         return try HeartbeatProcessing.makePacket(
             senderID: senderID,
@@ -120,8 +157,9 @@ extension HealthKitHeartRateRecorder: HKWorkoutSessionDelegate {
         didFailWithError error: Error
     ) {
         Task { @MainActor in
-            lastError = error
+            lastErrorMessage = error.localizedDescription
             isCapturing = false
+            print("[HealthKit] Workout session failed: \(error.localizedDescription)")
         }
     }
 }
@@ -149,7 +187,8 @@ extension HealthKitHeartRateRecorder: HKLiveWorkoutBuilderDelegate {
         Task { @MainActor in
             currentBPM = bpm
             samples.append(HeartRateSample(bpm: bpm, capturedAt: Date()))
+            sampleCount = samples.count
+            print("[HealthKit] Received heart rate: \(bpm) BPM")
         }
     }
 }
-

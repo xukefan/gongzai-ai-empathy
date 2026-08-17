@@ -24,6 +24,10 @@
 	<string>仅在你主动分享时读取心率，用于生成可分享的心跳节奏。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>仅在你主动录制时保存原声，用于生活瞬间分享和服务器端转写。</string>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
 	<key>WKApplication</key>
 	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>

@@ -19,6 +19,15 @@ struct WatchHomeView: View {
                 Text(heartRateText)
                     .font(.title3.monospacedDigit())
 
+                if heartRateRecorder.isCapturing,
+                   heartRateRecorder.currentBPM == nil {
+                    ProgressView()
+                    Text("请贴紧佩戴，首次读数可能需要 8–15 秒")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
                 Button(heartRateRecorder.isCapturing ? "结束并发送" : "采集心率") {
                     Task {
                         await toggleHeartRateCapture()
@@ -48,11 +57,9 @@ struct WatchHomeView: View {
             }
             .padding()
         }
-        .task {
-            do {
-                try await heartRateRecorder.requestAuthorization()
-            } catch {
-                statusText = "HealthKit 授权失败"
+        .onChange(of: heartRateRecorder.lastErrorMessage) { _, message in
+            if let message {
+                statusText = "采集失败：\(message)"
             }
         }
     }
@@ -75,11 +82,14 @@ struct WatchHomeView: View {
                 try connectivity.transfer(packet: packet)
                 statusText = "心率已交给 iPhone"
             } else {
-                try heartRateRecorder.startCapture()
-                statusText = "正在采集"
+                statusText = "正在请求健康权限…"
+                try await heartRateRecorder.requestAuthorization()
+                statusText = "正在启动心率传感器…"
+                try await heartRateRecorder.startCapture()
+                statusText = "正在采集，请等待心率读数"
             }
         } catch {
-            statusText = "心率采集失败"
+            statusText = "采集失败：\(error.localizedDescription)"
         }
     }
 

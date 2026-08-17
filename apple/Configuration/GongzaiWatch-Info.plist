@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>仅在你主动分享时读取心率，用于生成可分享的心跳节奏。</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>用于启动短时心率采集会话；采集结束后不会保存为健身记录。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>仅在你主动录制时保存原声，用于生活瞬间分享和服务器端转写。</string>
 	<key>WKBackgroundModes</key>

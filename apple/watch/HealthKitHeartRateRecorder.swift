@@ -43,9 +43,10 @@ final class HealthKitHeartRateRecorder: NSObject, ObservableObject {
         guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
             throw RecorderError.heartRateUnavailable
         }
+        let workoutType = HKObjectType.workoutType()
 
         try await healthStore.requestAuthorization(
-            toShare: [],
+            toShare: [workoutType],
             read: [heartRateType]
         )
     }

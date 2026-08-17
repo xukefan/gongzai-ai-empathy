@@ -1,0 +1,460 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		157CA4A1BBEF173E43B2172B /* GongzaiWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */; };
+		1AAB5BF50E982571F903F3E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E686E1649BA0F42975BB709D /* ContentView.swift */; };
+		2250C82DED29EF469E669BBB /* GongzaiCore in Frameworks */ = {isa = PBXBuildFile; productRef = 712DA08C63F4C6A62228971A /* GongzaiCore */; };
+		36070E620DD48CC7E39C7E85 /* HeartbeatHapticPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */; };
+		5D8976C9523491DA9626F2FD /* WatchHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB8F735E1094AAE277F354E /* WatchHomeView.swift */; };
+		73EF9EC7B754341E976573F1 /* GongzaiCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0B36D1C5812D591E32D93A6F /* GongzaiCore */; };
+		8E09DE43F1DD7B3ED18B7829 /* GongzaiAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */; };
+		B19E0FB44037FA61F741E79F /* WatchAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7AD71A5A09ECB137BA36BC /* WatchAudioRecorder.swift */; };
+		B6DD67E796A9F7A617302E97 /* PhoneConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1338E947AF5F710FA8F0B29E /* PhoneConnectivityService.swift */; };
+		EA8C105EF980C0096A16223F /* WatchConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E07206CDAC266358C08F15 /* WatchConnectivityService.swift */; };
+		F89CAADDB9D73B2DD17F68AE /* GongzaiIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */; };
+		FB8A579177CE901A9CA113F2 /* HealthKitHeartRateRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitHeartRateRecorder.swift; sourceTree = "<group>"; };
+		1338E947AF5F710FA8F0B29E /* PhoneConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneConnectivityService.swift; sourceTree = "<group>"; };
+		217A84DFEAF7E0B2CA99C653 /* apple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = apple; path = .; sourceTree = SOURCE_ROOT; };
+		429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatHapticPlayer.swift; sourceTree = "<group>"; };
+		4E7AD71A5A09ECB137BA36BC /* WatchAudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAudioRecorder.swift; sourceTree = "<group>"; };
+		6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiIOSApp.swift; sourceTree = "<group>"; };
+		69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiAPIClient.swift; sourceTree = "<group>"; };
+		73E07206CDAC266358C08F15 /* WatchConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityService.swift; sourceTree = "<group>"; };
+		795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiWatchApp.swift; sourceTree = "<group>"; };
+		946CDF186C67F9FB9D6D8570 /* GongzaiIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GongzaiIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DBB8F735E1094AAE277F354E /* WatchHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHomeView.swift; sourceTree = "<group>"; };
+		E4F148549AF086443FAD69D7 /* GongzaiWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GongzaiWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E686E1649BA0F42975BB709D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CB44CD4CDAEF32196A4334CB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2250C82DED29EF469E669BBB /* GongzaiCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D15048C5F14401608A2F29CB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				73EF9EC7B754341E976573F1 /* GongzaiCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4464DD246F3BCCE3E98CB9B6 /* watch */ = {
+			isa = PBXGroup;
+			children = (
+				795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */,
+				0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */,
+				429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */,
+				4E7AD71A5A09ECB137BA36BC /* WatchAudioRecorder.swift */,
+				73E07206CDAC266358C08F15 /* WatchConnectivityService.swift */,
+				DBB8F735E1094AAE277F354E /* WatchHomeView.swift */,
+			);
+			path = watch;
+			sourceTree = "<group>";
+		};
+		4918BFAE54047C78FCC133B2 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				217A84DFEAF7E0B2CA99C653 /* apple */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		7605CEFF9AF1CF291A3FEC60 = {
+			isa = PBXGroup;
+			children = (
+				FF59CE230AC02A81BDDE01AD /* ios */,
+				4918BFAE54047C78FCC133B2 /* Packages */,
+				4464DD246F3BCCE3E98CB9B6 /* watch */,
+				F2F6996D9287B5FCF00E6171 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F2F6996D9287B5FCF00E6171 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				946CDF186C67F9FB9D6D8570 /* GongzaiIOS.app */,
+				E4F148549AF086443FAD69D7 /* GongzaiWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FF59CE230AC02A81BDDE01AD /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				E686E1649BA0F42975BB709D /* ContentView.swift */,
+				69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */,
+				6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */,
+				1338E947AF5F710FA8F0B29E /* PhoneConnectivityService.swift */,
+			);
+			path = ios;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8FB3580E99A4425120D5188D /* GongzaiWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7036D96E420D9E315DA44882 /* Build configuration list for PBXNativeTarget "GongzaiWatch" */;
+			buildPhases = (
+				EBAABC713005A5ADD1A298D8 /* Sources */,
+				CB44CD4CDAEF32196A4334CB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GongzaiWatch;
+			packageProductDependencies = (
+				712DA08C63F4C6A62228971A /* GongzaiCore */,
+			);
+			productName = GongzaiWatch;
+			productReference = E4F148549AF086443FAD69D7 /* GongzaiWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B34795F5E919053F71E70148 /* GongzaiIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E538C640DDF4AE4D497637DC /* Build configuration list for PBXNativeTarget "GongzaiIOS" */;
+			buildPhases = (
+				346976BDDF25B32BE7651974 /* Sources */,
+				D15048C5F14401608A2F29CB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GongzaiIOS;
+			packageProductDependencies = (
+				0B36D1C5812D591E32D93A6F /* GongzaiCore */,
+			);
+			productName = GongzaiIOS;
+			productReference = 946CDF186C67F9FB9D6D8570 /* GongzaiIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB908AF979323A340D379608 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					8FB3580E99A4425120D5188D = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					B34795F5E919053F71E70148 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F4A68CDCA6A3C8C60741BE01 /* Build configuration list for PBXProject "Gongzai" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 7605CEFF9AF1CF291A3FEC60;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				162927EB7A3B66E3F0C1A0F3 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F2F6996D9287B5FCF00E6171 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B34795F5E919053F71E70148 /* GongzaiIOS */,
+				8FB3580E99A4425120D5188D /* GongzaiWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		346976BDDF25B32BE7651974 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1AAB5BF50E982571F903F3E4 /* ContentView.swift in Sources */,
+				8E09DE43F1DD7B3ED18B7829 /* GongzaiAPIClient.swift in Sources */,
+				F89CAADDB9D73B2DD17F68AE /* GongzaiIOSApp.swift in Sources */,
+				B6DD67E796A9F7A617302E97 /* PhoneConnectivityService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EBAABC713005A5ADD1A298D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				157CA4A1BBEF173E43B2172B /* GongzaiWatchApp.swift in Sources */,
+				FB8A579177CE901A9CA113F2 /* HealthKitHeartRateRecorder.swift in Sources */,
+				36070E620DD48CC7E39C7E85 /* HeartbeatHapticPlayer.swift in Sources */,
+				B19E0FB44037FA61F741E79F /* WatchAudioRecorder.swift in Sources */,
+				EA8C105EF980C0096A16223F /* WatchConnectivityService.swift in Sources */,
+				5D8976C9523491DA9626F2FD /* WatchHomeView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		054322E5605261D29B599FEC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
+				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
+				PRODUCT_NAME = GongzaiWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		2058C2CA53F5D27853868048 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
+				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
+				PRODUCT_NAME = GongzaiWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		788FC1C7F23B2B4810522827 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		94059D8ED71F0809AB9D2E61 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		E612160D0EE12B1D0955762B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai;
+				PRODUCT_NAME = GongzaiIOS;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		EEE33097AF6868B8C02EA92F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai;
+				PRODUCT_NAME = GongzaiIOS;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7036D96E420D9E315DA44882 /* Build configuration list for PBXNativeTarget "GongzaiWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2058C2CA53F5D27853868048 /* Debug */,
+				054322E5605261D29B599FEC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E538C640DDF4AE4D497637DC /* Build configuration list for PBXNativeTarget "GongzaiIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E612160D0EE12B1D0955762B /* Debug */,
+				EEE33097AF6868B8C02EA92F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F4A68CDCA6A3C8C60741BE01 /* Build configuration list for PBXProject "Gongzai" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				788FC1C7F23B2B4810522827 /* Debug */,
+				94059D8ED71F0809AB9D2E61 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		162927EB7A3B66E3F0C1A0F3 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0B36D1C5812D591E32D93A6F /* GongzaiCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GongzaiCore;
+		};
+		712DA08C63F4C6A62228971A /* GongzaiCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GongzaiCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AB908AF979323A340D379608 /* Project object */;
+}

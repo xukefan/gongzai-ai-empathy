@@ -15,6 +15,14 @@ final class PhoneConnectivityService: NSObject, ObservableObject {
     @Published private(set) var activationState: WCSessionActivationState = .notActivated
     @Published private(set) var lastErrorDescription: String?
 
+    var isPaired: Bool {
+        WCSession.isSupported() && WCSession.default.isPaired
+    }
+
+    var isWatchAppInstalled: Bool {
+        WCSession.isSupported() && WCSession.default.isWatchAppInstalled
+    }
+
     override init() {
         super.init()
         guard WCSession.isSupported() else { return }
@@ -29,6 +37,28 @@ final class PhoneConnectivityService: NSObject, ObservableObject {
                 "type": WatchMessageKind.heartbeatPacket.rawValue,
                 "payload": payload
             ])
+        } catch {
+            lastErrorDescription = error.localizedDescription
+        }
+    }
+
+    /// Sends a deterministic heartbeat to the paired Watch so one device pair
+    /// can verify haptic playback without a backend or a second user.
+    func sendDebugHeartbeat(bpm: Double) {
+        do {
+            let durationMS = 8_000
+            let packet = HeartbeatPacket(
+                senderID: "debug-iphone",
+                receiverID: "debug-watch",
+                averageBPM: bpm,
+                beatIntervalsMS: try HeartbeatProcessing.syntheticIntervals(
+                    averageBPM: bpm,
+                    durationMS: durationMS
+                ),
+                recordedAt: Date(),
+                durationMS: durationMS
+            )
+            transfer(packet: packet)
         } catch {
             lastErrorDescription = error.localizedDescription
         }

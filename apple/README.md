@@ -19,19 +19,33 @@ apple/
 └── watch/                  # Apple Watch App 文件
 ```
 
-## Xcode 工程接入
+## 生成与打开 Xcode 工程
 
-仓库暂不提交个人签名信息和 `xcuserdata`。请在安装完整 Xcode 的 Mac 上：
+工程由 `project.yml` 统一生成，避免四人协作时手工配置发生漂移：
 
-1. 新建一个 SwiftUI iOS App；
-2. 在同一工程增加 `Watch App for iOS App` target；
-3. 将 `ios/` 文件加入 iOS target，将 `watch/` 文件加入 watchOS target；
-4. 通过 `File > Add Package Dependencies > Add Local` 添加本目录；
-5. 两个 target 均依赖 `GongzaiCore`；
-6. 在 watchOS target 启用 HealthKit；
-7. 若使用活动会话持续采集，启用相应的 Background Modes；
-8. 添加心率读取和麦克风用途说明；
-9. 使用一组真实配对的 iPhone 与 Apple Watch 验证。
+```bash
+brew install xcodegen
+cd apple
+xcodegen generate
+open Gongzai.xcodeproj
+```
+
+仓库提交 `project.yml` 和生成的共享工程，但不提交个人签名信息和
+`xcuserdata`。第一次运行时，在 Xcode 的 `Signing & Capabilities` 中为
+iPhone、Watch 两个 target 选择自己的 Team。
+
+已配置：
+
+1. iPhone App 和配套 Watch App；
+2. 两端共享的本地 `GongzaiCore` package；
+3. Watch HealthKit entitlement；
+4. 心率读取、麦克风和 iOS 本地网络用途说明；
+5. iPhone 内仅 Debug 构建可见的 60/80/100 BPM 测试入口。
+
+当前开发阶段两个 App 使用各自 Scheme 分别安装到已配对的 iPhone 与
+Apple Watch。正式 TestFlight/上架前再增加 Watch App 的随 iPhone App
+嵌入与分发配置；这不会影响第一周的真机 HealthKit、录音与
+WatchConnectivity 验证。
 
 建议用途说明：
 
@@ -62,3 +76,14 @@ swift test
 ```
 
 iOS、watchOS、HealthKit 和 WatchConnectivity 必须在完整 Xcode 与真机环境中验证。
+
+无签名模拟器构建：
+
+```bash
+xcodebuild \
+  -project Gongzai.xcodeproj \
+  -scheme GongzaiIOS \
+  -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```

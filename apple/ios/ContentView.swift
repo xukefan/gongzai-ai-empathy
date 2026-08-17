@@ -23,6 +23,11 @@ struct ContentView: View {
 
                 Section("Apple Watch") {
                     LabeledContent("连接状态", value: activationLabel)
+                    LabeledContent("已配对", value: connectivity.isPaired ? "是" : "否")
+                    LabeledContent(
+                        "Watch App",
+                        value: connectivity.isWatchAppInstalled ? "已安装" : "未安装"
+                    )
 
                     if let packet = connectivity.latestHeartbeat {
                         LabeledContent(
@@ -45,6 +50,24 @@ struct ContentView: View {
                         .disabled(isWorking)
                     }
                 }
+
+#if DEBUG
+                Section("单机调试") {
+                    Text("向配对的 Apple Watch 发送测试节奏，无需服务器或第二位用户。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        ForEach([60.0, 80.0, 100.0], id: \.self) { bpm in
+                            Button("\(Int(bpm)) BPM") {
+                                connectivity.sendDebugHeartbeat(bpm: bpm)
+                                statusText = "已排队发送 \(Int(bpm)) BPM 测试节奏"
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+#endif
 
                 Section("状态") {
                     Text(statusText)

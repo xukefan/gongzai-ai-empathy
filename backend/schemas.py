@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 
 class HeartbeatSendRequest(BaseModel):
@@ -37,7 +37,7 @@ class TimelineResponse(BaseModel):
 class TuyaWebhookRequest(BaseModel):
     device_id: str
     dp_id: int
-    value: int
+    value: Any
     timestamp: int
 
 class CommonResponse(BaseModel):

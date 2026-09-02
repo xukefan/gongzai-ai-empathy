@@ -22,10 +22,13 @@
 	<string>1</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- Temporary competition-build exception for the IP-only HTTP backend. -->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>开发阶段用于连接同一局域网中的共在测试服务器。</string>
+	<string>用于连接共在测试服务器和实体挂件。</string>
 </dict>
 </plist>

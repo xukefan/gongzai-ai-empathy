@@ -2,7 +2,7 @@ import SwiftUI
 import GongzaiCore
 
 struct ContentView: View {
-    @AppStorage("apiBaseURL") private var apiBaseURL = "http://127.0.0.1:8000"
+    @AppStorage("apiBaseURL") private var apiBaseURL = "http://124.221.238.246:8000"
     @AppStorage("currentUserID") private var currentUserID = "demo-user-a"
 
     @StateObject private var connectivity = PhoneConnectivityService()
@@ -96,6 +96,12 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("共在")
+            .task {
+                // Migrate devices that saved the old local development URL.
+                if apiBaseURL == "http://127.0.0.1:8000" {
+                    apiBaseURL = "http://124.221.238.246:8000"
+                }
+            }
         }
     }
 

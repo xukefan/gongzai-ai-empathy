@@ -67,3 +67,9 @@ class Response(Base):
     from_user = Column(String(36), nullable=False)
     response_type = Column(String(20), default="touch")
     created_at = Column(DateTime, server_default=func.now())
+
+class DoNotDisturbSetting(Base):
+    __tablename__ = "dnd_settings"
+    user_id = Column(String(36), primary_key=True)
+    enabled = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

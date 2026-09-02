@@ -1,14 +1,16 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
-import os
+from pathlib import Path
 
 from database import get_db, engine
-from models import Base, User, Relationship, Device, HeartbeatEvent, VoiceRecord, Moment, Response
+from models import Base, User, Relationship, Device, HeartbeatEvent, VoiceRecord, Moment, Response, DoNotDisturbSetting
 from schemas import *
 from tuya_client import TuyaClient
+from config import Config
 
 Base.metadata.create_all(bind=engine)
 
@@ -16,12 +18,14 @@ app = FastAPI(title="共感挂件后端API", version="1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=Config.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 tuya = TuyaClient()
+VOICE_STORAGE_ROOT = (Path(__file__).resolve().parent / Config.VOICE_STORAGE_DIR).resolve()
+ALLOWED_VOICE_EXTENSIONS = {".m4a", ".wav", ".mp3", ".aac"}
 
 @app.get("/api/health")
 def health_check():
@@ -43,6 +47,8 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
     
     device = db.query(Device).filter(Device.user_id == req.receiver_id).first()
     if not device:
+        event.status = "failed"
+        db.commit()
         return HeartbeatSendResponse(
             event_id=event_id,
             status="error",
@@ -50,10 +56,10 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
         )
     
     try:
-        tuya.send_command(device.device_id, 101, req.bpm)
+        tuya.send_command(device.device_id, Config.TUYA_BPM_CODE, req.bpm)
         if req.pattern:
-            tuya.send_command(device.device_id, 102, req.pattern)
-        tuya.send_command(device.device_id, 103, 1)
+            tuya.send_command(device.device_id, Config.TUYA_PATTERN_CODE, req.pattern)
+        tuya.send_command(device.device_id, Config.TUYA_TRIGGER_CODE, True)
         # 下发成功后，把事件状态更新为 "delivered"
         event.status = "delivered"
         db.commit()
@@ -64,6 +70,8 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
             message="已下发到挂件"
         )
     except Exception as e:
+        event.status = "failed"
+        db.commit()
         return HeartbeatSendResponse(
             event_id=event_id,
             status="error",
@@ -152,7 +160,8 @@ def handle_tuya_event(req: TuyaWebhookRequest, db: Session = Depends(get_db)):
     
     if req.dp_id == 105:
         latest_event = db.query(HeartbeatEvent).filter(
-            HeartbeatEvent.receiver_id == device.user_id
+            HeartbeatEvent.receiver_id == device.user_id,
+            HeartbeatEvent.status.in_(["delivered", "played", "acknowledged"])
         ).order_by(HeartbeatEvent.sent_at.desc()).first()
         
         if latest_event:
@@ -162,6 +171,7 @@ def handle_tuya_event(req: TuyaWebhookRequest, db: Session = Depends(get_db)):
                 response_type="touch" if req.value == 2 else "tap"
             )
             db.add(response)
+            latest_event.status = "replied"
             db.commit()
             return {"code": 0, "msg": "已记录回应"}
     
@@ -174,16 +184,24 @@ async def upload_voice(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    os.makedirs("uploads/voices", exist_ok=True)
-    file_path = f"uploads/voices/{uuid.uuid4()}.m4a"
-    
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
+    if duration <= 0:
+        raise HTTPException(status_code=422, detail="duration must be positive")
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in ALLOWED_VOICE_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="only m4a, wav, mp3, and aac files are supported")
+
+    content = await file.read(Config.MAX_VOICE_UPLOAD_BYTES + 1)
+    if len(content) > Config.MAX_VOICE_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="voice file is too large")
+
+    VOICE_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    stored_filename = f"{uuid.uuid4()}{suffix}"
+    file_path = VOICE_STORAGE_ROOT / stored_filename
+    file_path.write_bytes(content)
     
     voice = VoiceRecord(
         user_id=user_id,
-        file_url=f"/static/{file_path}",
+        file_url=stored_filename,
         duration=duration
     )
     db.add(voice)
@@ -195,16 +213,49 @@ async def upload_voice(
         "ai_status": "pending"
     }
 
-dnd_status = {}
+
+def get_voice_for_owner(voice_id: str, user_id: str, db: Session) -> VoiceRecord:
+    voice = db.query(VoiceRecord).filter(VoiceRecord.id == voice_id).first()
+    if not voice:
+        raise HTTPException(status_code=404, detail="voice not found")
+    if voice.user_id != user_id:
+        raise HTTPException(status_code=403, detail="voice does not belong to this user")
+    return voice
+
+
+@app.get("/api/voice/{voice_id}")
+def download_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+    voice = get_voice_for_owner(voice_id, user_id, db)
+    file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
+    if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="voice file not found")
+    return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
+
+
+@app.delete("/api/voice/{voice_id}")
+def delete_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+    voice = get_voice_for_owner(voice_id, user_id, db)
+    file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
+    if VOICE_STORAGE_ROOT in file_path.parents and file_path.is_file():
+        file_path.unlink()
+    db.delete(voice)
+    db.commit()
+    return {"status": "deleted", "voice_id": voice_id}
 
 @app.post("/api/dnd/set")
-def set_dnd(user_id: str, enabled: bool):
-    dnd_status[user_id] = enabled
+def set_dnd(user_id: str, enabled: bool, db: Session = Depends(get_db)):
+    setting = db.query(DoNotDisturbSetting).filter(DoNotDisturbSetting.user_id == user_id).first()
+    if setting:
+        setting.enabled = enabled
+    else:
+        db.add(DoNotDisturbSetting(user_id=user_id, enabled=enabled))
+    db.commit()
     return {"status": "ok", "dnd_enabled": enabled}
 
 @app.get("/api/dnd/status")
-def get_dnd(user_id: str):
-    return {"dnd_enabled": dnd_status.get(user_id, False)}
+def get_dnd(user_id: str, db: Session = Depends(get_db)):
+    setting = db.query(DoNotDisturbSetting).filter(DoNotDisturbSetting.user_id == user_id).first()
+    return {"dnd_enabled": setting.enabled if setting else False}
 
 @app.post("/api/relationships/unbind")
 def unbind_relationship(user_id: str, db: Session = Depends(get_db)):
@@ -343,6 +394,10 @@ def update_moment_status(
     更新生活瞬间的状态
     - status: 可选值 "active", "shared", "responded", "archived"
     """
+    allowed_statuses = {"active", "shared", "responded", "archived"}
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=422, detail="invalid moment status")
+
     moment = db.query(Moment).filter(Moment.id == moment_id).first()
     
     if not moment:

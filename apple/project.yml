@@ -38,10 +38,15 @@ targets:
       properties:
         CFBundleDisplayName: 共在
         CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleVersion: "2"
         NSLocalNetworkUsageDescription: 开发阶段用于连接同一局域网中的共在测试服务器。
         NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            124.221.238.246:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
 
   GongzaiWatch:
     type: application

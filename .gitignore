@@ -1,0 +1,32 @@
+# Secrets
+.env
+*.xcconfig
+!*.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+backend/*.db
+backend/uploads/
+
+# Swift / Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Embedded / CMake
+build/
+build-*/
+cmake-build-*/
+dist/
+*.elf
+*.bin
+*.map
+
+# macOS
+.DS_Store

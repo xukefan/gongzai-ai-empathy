@@ -1,0 +1,85 @@
+name: Gongzai
+
+options:
+  bundleIdPrefix: io.github.xukefan.gongzai
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  GongzaiCore:
+    path: .
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  GongzaiIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: ios
+    dependencies:
+      - package: GongzaiCore
+      - target: GongzaiWatch
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.xukefan.gongzai
+        PRODUCT_NAME: GongzaiIOS
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: Configuration/GongzaiIOS-Info.plist
+      properties:
+        CFBundleDisplayName: 共在
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSLocalNetworkUsageDescription: 开发阶段用于连接同一局域网中的共在测试服务器。
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+
+  GongzaiWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: watch
+    dependencies:
+      - package: GongzaiCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.xukefan.gongzai.watchkitapp
+        PRODUCT_NAME: GongzaiWatch
+        TARGETED_DEVICE_FAMILY: "4"
+        CODE_SIGN_ENTITLEMENTS: Configuration/GongzaiWatch.entitlements
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: io.github.xukefan.gongzai
+    info:
+      path: Configuration/GongzaiWatch-Info.plist
+      properties:
+        CFBundleDisplayName: 共在
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSHealthShareUsageDescription: 仅在你主动分享时读取心率，用于生成可分享的心跳节奏。
+        NSMicrophoneUsageDescription: 仅在你主动录制时保存原声，用于生活瞬间分享和服务器端转写。
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: io.github.xukefan.gongzai
+
+schemes:
+  GongzaiIOS:
+    build:
+      targets:
+        GongzaiIOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  GongzaiWatch:
+    build:
+      targets:
+        GongzaiWatch: all
+    run:
+      config: Debug

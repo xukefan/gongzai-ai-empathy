@@ -13,7 +13,7 @@ class TuyaClient:
         self.endpoint = Config.TUYA_API_ENDPOINT
         self.token = None
         self.token_expire = 0
-    
+
     def _get_sign(self, method, path, body="", access_token=""):
         t = str(int(time.time() * 1000))
         nonce = str(uuid.uuid4())

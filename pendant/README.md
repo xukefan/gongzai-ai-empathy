@@ -96,4 +96,4 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 
 `CMakeLists.txt` 会复用当前 TuyaOpen SDK 自带的 `hello_tuya_16k.c` 作为扬声器测试原声，不把第三方二进制和构建产物提交进仓库。
 
-第一周已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。下一步依次接入 Wi-Fi/Tuya DP 和 HTTPS 原声任务。
+阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。下一步依次接入 Wi-Fi/Tuya DP 和 HTTPS 原声任务。

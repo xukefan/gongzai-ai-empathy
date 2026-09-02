@@ -270,7 +270,7 @@ static bool pendant_upload_recording(
     );
 
     /*
-     * Week 1 intentionally stops at a verified upload-ready memory asset.
+     * The foundation milestone stops at a verified upload-ready memory asset.
      * Member 2 will provide the authenticated HTTP endpoint in the next
      * integration milestone. Never print or persist the private voice bytes.
      */

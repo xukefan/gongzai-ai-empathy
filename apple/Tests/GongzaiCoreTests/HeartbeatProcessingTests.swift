@@ -68,4 +68,26 @@ final class HeartbeatProcessingTests: XCTestCase {
         XCTAssertEqual(request.bpm, 82)
         XCTAssertEqual(request.pattern, "728,735")
     }
+
+    func testDecodesHardenedBackendResponses() throws {
+        let decoder = GongzaiCoding.decoder()
+
+        let health = try decoder.decode(
+            BackendHealthResponse.self,
+            from: Data(#"{"status":"ok","service":"coglink-backend"}"#.utf8)
+        )
+        XCTAssertEqual(health.service, "coglink-backend")
+
+        let dnd = try decoder.decode(
+            BackendDNDResponse.self,
+            from: Data(#"{"status":"ok","dnd_enabled":true}"#.utf8)
+        )
+        XCTAssertTrue(dnd.isEnabled)
+
+        let deleted = try decoder.decode(
+            BackendVoiceDeleteResponse.self,
+            from: Data(#"{"status":"deleted","voice_id":"voice-1"}"#.utf8)
+        )
+        XCTAssertEqual(deleted.voiceID, "voice-1")
+    }
 }

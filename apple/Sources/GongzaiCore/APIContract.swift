@@ -47,6 +47,35 @@ public struct BackendVoiceUploadResponse: Codable, Equatable, Sendable {
     }
 }
 
+public struct BackendHealthResponse: Codable, Equatable, Sendable {
+    public let status: String
+    public let service: String
+}
+
+public struct BackendVoiceDeleteResponse: Codable, Equatable, Sendable {
+    public let status: String
+    public let voiceID: String
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case voiceID = "voice_id"
+    }
+}
+
+public struct BackendDNDResponse: Codable, Equatable, Sendable {
+    public let status: String?
+    public let isEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case isEnabled = "dnd_enabled"
+    }
+}
+
+public struct BackendErrorResponse: Codable, Equatable, Sendable {
+    public let detail: String
+}
+
 public enum WatchMessageKind: String, Codable, Sendable {
     case heartbeatPacket = "heartbeat_packet"
     case acknowledgement
@@ -66,4 +95,3 @@ public enum GongzaiCoding {
         return decoder
     }
 }
-

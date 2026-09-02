@@ -8,6 +8,7 @@ struct ContentView: View {
     @StateObject private var connectivity = PhoneConnectivityService()
     @State private var statusText = "等待 Apple Watch 数据"
     @State private var isWorking = false
+    @State private var isDNDEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -19,6 +20,23 @@ struct ContentView: View {
                     TextField("当前用户 ID", text: $currentUserID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                    Button("测试服务器连接") {
+                        Task { await checkServer() }
+                    }
+                    .disabled(isWorking)
+                }
+
+                Section("隐私与勿扰") {
+                    Toggle("勿扰模式", isOn: $isDNDEnabled)
+                    HStack {
+                        Button("读取服务器设置") {
+                            Task { await loadDND() }
+                        }
+                        Button("保存") {
+                            Task { await saveDND() }
+                        }
+                    }
+                    .disabled(isWorking)
                 }
 
                 Section("Apple Watch") {
@@ -91,6 +109,55 @@ struct ContentView: View {
             return "等待激活"
         @unknown default:
             return "未知"
+        }
+    }
+
+    @MainActor
+    private func checkServer() async {
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let result = try await client.healthCheck()
+            statusText = result.status == "ok"
+                ? "服务器已连接：\(result.service)"
+                : "服务器状态异常：\(result.status)"
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func loadDND() async {
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let result = try await client.dndStatus(userID: currentUserID)
+            isDNDEnabled = result.isEnabled
+            statusText = "已读取服务器勿扰设置"
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func saveDND() async {
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let result = try await client.setDND(
+                userID: currentUserID,
+                enabled: isDNDEnabled
+            )
+            isDNDEnabled = result.isEnabled
+            statusText = "勿扰设置已保存"
+        } catch {
+            statusText = error.localizedDescription
         }
     }
 

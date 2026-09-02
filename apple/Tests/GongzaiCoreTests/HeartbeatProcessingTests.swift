@@ -90,4 +90,19 @@ final class HeartbeatProcessingTests: XCTestCase {
         )
         XCTAssertEqual(deleted.voiceID, "voice-1")
     }
+
+    func testDecodesAIDiaryResponse() throws {
+        let decoder = GongzaiCoding.decoder()
+        let response = try decoder.decode(
+            BackendMomentCreateResponse.self,
+            from: Data(
+                #"{"code":0,"msg":"AI日记已生成","data":{"id":"m-1","user_id":"user-a","title":"答辩结束后的松一口气","summary":"今天答辩结束了。","raw_text":"今天答辩终于结束了。","created_at":"2026-09-02T10:00:00","ai_status":"generated"}}"#.utf8
+            )
+        )
+
+        XCTAssertEqual(response.code, 0)
+        XCTAssertEqual(response.data?.id, "m-1")
+        XCTAssertEqual(response.data?.title, "答辩结束后的松一口气")
+        XCTAssertEqual(response.data?.aiStatus, "generated")
+    }
 }

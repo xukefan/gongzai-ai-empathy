@@ -5,6 +5,7 @@ struct ContentView: View {
     private enum FocusField: Hashable {
         case apiBaseURL
         case userID
+        case diaryContent
     }
 
     @AppStorage("apiBaseURL") private var apiBaseURL = "http://124.221.238.246:8000"
@@ -14,6 +15,8 @@ struct ContentView: View {
     @State private var statusText = "等待 Apple Watch 数据"
     @State private var isWorking = false
     @State private var isDNDEnabled = false
+    @State private var diaryContent = ""
+    @State private var moments: [BackendMoment] = []
     @FocusState private var focusedField: FocusField?
 
     var body: some View {
@@ -45,6 +48,64 @@ struct ContentView: View {
                         }
                         Text(statusText)
                             .textSelection(.enabled)
+                    }
+                }
+
+                Section("AI 日记") {
+                    Text("把这次发送的文字，或服务器转写后的原声内容放在这里，AI 会生成一条可回顾的日记。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $diaryContent)
+                        .focused($focusedField, equals: .diaryContent)
+                        .frame(minHeight: 90)
+                        .overlay(alignment: .topLeading) {
+                            if diaryContent.isEmpty {
+                                Text("例如：今天答辩结束了，虽然有点乱，但终于松了一口气。")
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                    HStack {
+                        Button("生成并保存 AI 日记") {
+                            focusedField = nil
+                            Task { await generateDiary() }
+                        }
+                        .disabled(isWorking || diaryContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button("刷新") {
+                            focusedField = nil
+                            Task { await loadMoments() }
+                        }
+                        .disabled(isWorking)
+                    }
+
+                    if moments.isEmpty {
+                        Text("还没有日记记录")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(moments) { moment in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(moment.title ?? "生活片段")
+                                    .font(.headline)
+                                if let summary = moment.summary, !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.subheadline)
+                                }
+                                HStack(spacing: 8) {
+                                    if let bpm = moment.bpm {
+                                        Label("\(bpm) BPM", systemImage: "heart.fill")
+                                    }
+                                    Text(moment.createdAt)
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
 
@@ -135,6 +196,7 @@ struct ContentView: View {
                 if apiBaseURL == "http://127.0.0.1:8000" {
                     apiBaseURL = "http://124.221.238.246:8000"
                 }
+                await loadMoments()
             }
         }
     }
@@ -234,5 +296,51 @@ struct ContentView: View {
         } catch {
             statusText = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func generateDiary() async {
+        let content = diaryContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
+
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let moment = try await client.generateMoment(
+                userID: currentUserID,
+                content: content,
+                bpm: latestBPM
+            )
+            moments.removeAll { $0.id == moment.id }
+            moments.insert(moment, at: 0)
+            diaryContent = ""
+            statusText = moment.aiStatus == "fallback"
+                ? "日记已保存（等待服务器配置 AI）"
+                : "AI 日记已生成并保存"
+        } catch {
+            statusText = "AI 日记生成失败：\(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func loadMoments() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            moments = try await client.fetchMoments(userID: currentUserID)
+        } catch {
+            // Do not replace the initial screen with an error when the server
+            // is temporarily unavailable; the user can retry with “刷新”.
+        }
+    }
+
+    private var latestBPM: Int? {
+        guard let heartbeat = connectivity.latestHeartbeat else { return nil }
+        return Int(heartbeat.averageBPM.rounded())
     }
 }

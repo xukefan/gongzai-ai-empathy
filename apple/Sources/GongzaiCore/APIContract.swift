@@ -72,6 +72,73 @@ public struct BackendDNDResponse: Codable, Equatable, Sendable {
     }
 }
 
+public struct BackendMomentGenerateRequest: Codable, Equatable, Sendable {
+    public let userID: String
+    public let content: String
+    public let voiceID: String?
+    public let bpm: Int?
+
+    public init(
+        userID: String,
+        content: String,
+        voiceID: String? = nil,
+        bpm: Int? = nil
+    ) {
+        self.userID = userID
+        self.content = content
+        self.voiceID = voiceID
+        self.bpm = bpm
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case content
+        case voiceID = "voice_id"
+        case bpm
+    }
+}
+
+public struct BackendMoment: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let userID: String?
+    public let title: String?
+    public let summary: String?
+    public let rawText: String?
+    public let voiceID: String?
+    public let bpm: Int?
+    public let createdAt: String
+    public let aiStatus: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case title
+        case summary
+        case rawText = "raw_text"
+        case voiceID = "voice_id"
+        case bpm
+        case createdAt = "created_at"
+        case aiStatus = "ai_status"
+    }
+}
+
+public struct BackendMomentCreateResponse: Codable, Equatable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: BackendMoment?
+}
+
+public struct BackendMomentsData: Codable, Equatable, Sendable {
+    public let total: Int
+    public let moments: [BackendMoment]
+}
+
+public struct BackendMomentsResponse: Codable, Equatable, Sendable {
+    public let code: Int
+    public let msg: String
+    public let data: BackendMomentsData?
+}
+
 public struct BackendErrorResponse: Codable, Equatable, Sendable {
     public let detail: String
 }

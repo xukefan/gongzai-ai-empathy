@@ -265,6 +265,19 @@ created → uploaded → delivered → played → acknowledged → replied
 
 音频文件不通过 DP 传输；DP 只传任务或资源标识。
 
+### AI 日记接口（当前原型）
+
+用户确认发送内容后，由服务器 AI 生成并保存日记：
+
+```text
+POST /api/moments/generate
+GET  /api/moments?user_id=<用户ID>
+```
+
+请求体至少包含 `user_id` 和 `content`，可附带 `voice_id`、`bpm`。原始内容保存在
+服务器，AI 仅生成忠实的标题和摘要；未配置 AI 服务时，接口返回 `ai_status=fallback`
+用于联调，不代表已完成真实模型生成。
+
 ## AI 功能范围
 
 ### 第一阶段

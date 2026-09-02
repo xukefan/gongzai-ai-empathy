@@ -134,6 +134,8 @@ interval_ms = 60000 / BPM
 
 ```text
 POST /api/moments
+POST /api/moments/generate
+GET  /api/moments?user_id=<user_id>
 GET  /api/moments/{event_id}
 POST /api/moments/{event_id}/acknowledge
 POST /api/moments/{event_id}/reply

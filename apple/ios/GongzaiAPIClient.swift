@@ -174,6 +174,67 @@ struct GongzaiAPIClient {
         )
     }
 
+    func generateMoment(
+        userID: String,
+        content: String,
+        voiceID: String? = nil,
+        bpm: Int? = nil
+    ) async throws -> BackendMoment {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("api/moments/generate")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try GongzaiCoding.encoder().encode(
+            BackendMomentGenerateRequest(
+                userID: userID,
+                content: content,
+                voiceID: voiceID,
+                bpm: bpm
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        try Self.validate(response: response, body: data)
+        let envelope = try GongzaiCoding.decoder().decode(
+            BackendMomentCreateResponse.self,
+            from: data
+        )
+        try Self.validate(envelope: envelope.code, message: envelope.msg)
+        guard let moment = envelope.data else {
+            throw GongzaiAPIError.invalidResponse
+        }
+        return moment
+    }
+
+    func fetchMoments(
+        userID: String,
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> [BackendMoment] {
+        let url = try queryURL(
+            path: "api/moments",
+            items: [
+                URLQueryItem(name: "user_id", value: userID),
+                URLQueryItem(name: "limit", value: String(max(1, min(limit, 100)))),
+                URLQueryItem(name: "offset", value: String(max(0, offset)))
+            ]
+        )
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        let (data, response) = try await session.data(for: request)
+        try Self.validate(response: response, body: data)
+        let envelope = try GongzaiCoding.decoder().decode(
+            BackendMomentsResponse.self,
+            from: data
+        )
+        try Self.validate(envelope: envelope.code, message: envelope.msg)
+        return envelope.data?.moments ?? []
+    }
+
     private func queryURL(path: String, items: [URLQueryItem]) throws -> URL {
         var components = URLComponents(
             url: baseURL.appendingPathComponent(path),
@@ -217,6 +278,12 @@ struct GongzaiAPIClient {
                 statusCode: httpResponse.statusCode,
                 message: message
             )
+        }
+    }
+
+    private static func validate(envelope code: Int, message: String) throws {
+        guard code == 0 else {
+            throw GongzaiAPIError.rejected(statusCode: code, message: message)
         }
     }
 

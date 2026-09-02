@@ -11,6 +11,7 @@ from models import Base, User, Relationship, Device, HeartbeatEvent, VoiceRecord
 from schemas import *
 from tuya_client import TuyaClient
 from config import Config
+from ai_service import AIServiceError, generate_diary
 
 Base.metadata.create_all(bind=engine)
 
@@ -282,6 +283,56 @@ class CreateMomentRequest(BaseModel):
     title: str
     summary: str
     voice_id: Optional[str] = None
+
+
+class GenerateMomentRequest(BaseModel):
+    user_id: str
+    content: str
+    voice_id: Optional[str] = None
+    bpm: Optional[int] = None
+
+
+@app.post("/api/moments/generate", response_model=CommonResponse)
+def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
+    """Generate and save a diary-style moment from user-approved content."""
+    content = req.content.strip()
+    if not content:
+        raise HTTPException(status_code=422, detail="content must not be empty")
+    if len(content) > 10_000:
+        raise HTTPException(status_code=413, detail="content is too long")
+    if req.bpm is not None and not 30 <= req.bpm <= 240:
+        raise HTTPException(status_code=422, detail="bpm must be between 30 and 240")
+
+    try:
+        diary = generate_diary(content, req.bpm)
+    except AIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    moment = Moment(
+        user_id=req.user_id,
+        title=diary["title"],
+        summary=diary["summary"],
+        raw_text=content,
+        voice_id=req.voice_id,
+    )
+    db.add(moment)
+    db.commit()
+    db.refresh(moment)
+
+    return CommonResponse(
+        code=0,
+        msg="AI日记已生成",
+        data={
+            "id": moment.id,
+            "user_id": moment.user_id,
+            "title": moment.title,
+            "summary": moment.summary,
+            "raw_text": moment.raw_text,
+            "voice_id": moment.voice_id,
+            "created_at": moment.created_at.isoformat(),
+            "ai_status": diary["ai_status"],
+        },
+    )
 
 
 @app.post("/api/moments", response_model=CommonResponse)

@@ -32,9 +32,20 @@ struct ContentView: View {
                         .submitLabel(.done)
                     Button("测试服务器连接") {
                         focusedField = nil
+                        statusText = "正在连接服务器…"
                         Task { await checkServer() }
                     }
                     .disabled(isWorking)
+                }
+
+                Section("当前状态") {
+                    HStack(spacing: 10) {
+                        if isWorking {
+                            ProgressView()
+                        }
+                        Text(statusText)
+                            .textSelection(.enabled)
+                    }
                 }
 
                 Section("隐私与勿扰") {
@@ -98,11 +109,11 @@ struct ContentView: View {
                 }
 #endif
 
-                Section("状态") {
-                    Text(statusText)
-                    if let error = connectivity.lastErrorDescription {
+                if let error = connectivity.lastErrorDescription {
+                    Section("Apple Watch 错误") {
                         Text(error)
                             .foregroundStyle(.red)
+                            .textSelection(.enabled)
                     }
                 }
             }

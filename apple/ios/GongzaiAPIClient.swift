@@ -34,9 +34,12 @@ struct GongzaiAPIClient {
     }
 
     func healthCheck() async throws -> BackendHealthResponse {
-        let request = URLRequest(
+        var request = URLRequest(
             url: baseURL.appendingPathComponent("api/health")
         )
+        // Do not leave the UI looking frozen when a device cannot reach the host.
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, response) = try await session.data(for: request)
         try Self.validate(response: response, body: data)
         return try GongzaiCoding.decoder().decode(

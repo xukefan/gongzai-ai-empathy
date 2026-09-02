@@ -2,6 +2,11 @@ import SwiftUI
 import GongzaiCore
 
 struct ContentView: View {
+    private enum FocusField: Hashable {
+        case apiBaseURL
+        case userID
+    }
+
     @AppStorage("apiBaseURL") private var apiBaseURL = "http://124.221.238.246:8000"
     @AppStorage("currentUserID") private var currentUserID = "demo-user-a"
 
@@ -9,6 +14,7 @@ struct ContentView: View {
     @State private var statusText = "等待 Apple Watch 数据"
     @State private var isWorking = false
     @State private var isDNDEnabled = false
+    @FocusState private var focusedField: FocusField?
 
     var body: some View {
         NavigationStack {
@@ -17,10 +23,15 @@ struct ContentView: View {
                     TextField("后端地址", text: $apiBaseURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($focusedField, equals: .apiBaseURL)
+                        .submitLabel(.done)
                     TextField("当前用户 ID", text: $currentUserID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($focusedField, equals: .userID)
+                        .submitLabel(.done)
                     Button("测试服务器连接") {
+                        focusedField = nil
                         Task { await checkServer() }
                     }
                     .disabled(isWorking)
@@ -96,6 +107,18 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("共在")
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") {
+                        focusedField = nil
+                    }
+                }
+            }
+            .onSubmit {
+                focusedField = nil
+            }
             .task {
                 // Migrate devices that saved the old local development URL.
                 if apiBaseURL == "http://127.0.0.1:8000" {

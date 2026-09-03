@@ -115,6 +115,8 @@ T5AI 实体挂件
 
 任务三交接请参阅 [服务端 ASR 与 AI 生活记录交接文档](docs/handoffs/member-3-ai-asr-handoff.md)。
 
+完整项目方案初稿见 [“共在”项目详细方案](docs/proposals/gongzai-project-detailed-proposal-draft.md)。
+
 ## 目录结构
 
 ```text

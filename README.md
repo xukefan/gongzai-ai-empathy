@@ -113,6 +113,8 @@ T5AI 实体挂件
 
 详细链路与待确认项见 [技术路线](docs/architecture/technical-route.md)。
 
+任务三交接请参阅 [服务端 ASR 与 AI 生活记录交接文档](docs/handoffs/member-3-ai-asr-handoff.md)。
+
 ## 目录结构
 
 ```text

@@ -259,6 +259,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
+				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
@@ -274,6 +275,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
+				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
@@ -412,6 +414,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -429,6 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

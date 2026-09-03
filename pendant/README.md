@@ -30,6 +30,8 @@ ctest --test-dir pendant/build --output-on-failure
 `tuyaopen/` 已把硬件无关核心接入真实 TUYA_T5AI_BOARD。当前实现：
 
 - 3.5 英寸 ILI9488 + GT1151 触摸屏界面；
+- 屏幕逻辑分辨率为 320×480（竖屏），界面根据 LVGL 实际分辨率自适应，避免内容贴近边缘被裁切；
+- 使用 TuyaOpen 自带中文字体，显示标题、状态、心率和操作按钮；
 - 屏幕光团按 60/80/100 BPM 柔和脉动；
 - 板载 GPIO LED 按同一 BPM 亮灭；
 - 板载扬声器播放 TuyaOpen 官方内嵌 MP3，验证原声播放链路；

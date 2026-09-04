@@ -159,7 +159,7 @@ def handle_tuya_event(req: TuyaWebhookRequest, db: Session = Depends(get_db)):
     if not device:
         return {"code": 404, "msg": "设备未绑定"}
     
-    if req.dp_id == 105:
+    if req.dp_id == 104:
         latest_event = db.query(HeartbeatEvent).filter(
             HeartbeatEvent.receiver_id == device.user_id,
             HeartbeatEvent.status.in_(["delivered", "played", "acknowledged"])

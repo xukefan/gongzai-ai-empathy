@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/moment.schema.json",
+  "title": "AI Moment Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "summary", "tags", "suggested_replies", "safety_flags", "ai_status", "schema_version"],
+  "properties": {
+    "title": {"type": "string", "minLength": 1, "maxLength": 100},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "tags": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+    "suggested_replies": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+    "safety_flags": {"type": "array", "items": {"type": "string"}},
+    "ai_status": {"type": "string", "enum": ["generated", "fallback"]},
+    "schema_version": {"type": "integer", "const": 1}
+  }
+}

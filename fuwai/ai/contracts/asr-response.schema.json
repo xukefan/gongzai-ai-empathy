@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/asr-response.schema.json",
+  "title": "ASR Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "event_id",
+    "status",
+    "transcript",
+    "language",
+    "provider",
+    "error_code",
+    "error_message",
+    "schema_version"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "processing",
+        "failed",
+        "invalid_audio",
+        "empty_transcript",
+        "unauthorized"
+      ]
+    },
+    "transcript": {
+      "type": ["string", "null"]
+    },
+    "language": {
+      "type": "string",
+      "const": "zh-CN"
+    },
+    "provider": {
+      "type": "string",
+      "const": "iflytek"
+    },
+    "duration_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "error_code": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "ASR_TIMEOUT",
+        "ASR_PROVIDER_ERROR",
+        "INVALID_FORMAT",
+        "FILE_TOO_LARGE",
+        "EMPTY_AUDIO",
+        "NO_CONSENT",
+        "INVALID_REQUEST"
+      ]
+    },
+    "error_message": {
+      "type": ["string", "null"]
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "transcript": {
+            "type": "string",
+            "minLength": 1
+          },
+          "error_code": {
+            "type": "null"
+          },
+          "error_message": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["failed", "invalid_audio", "empty_transcript", "unauthorized"]
+          }
+        }
+      },
+      "then": {
+        "required": ["error_code", "error_message"]
+      }
+    }
+  ]
+}

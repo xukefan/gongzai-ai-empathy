@@ -47,6 +47,12 @@ class VoiceRecord(Base):
     user_id = Column(String(36), nullable=False)
     file_url = Column(String(500), nullable=False)
     duration = Column(Integer)
+    transcript = Column(Text)
+    transcription_status = Column(String(32), nullable=False, default="pending")
+    transcription_error = Column(Text)
+    transcription_provider = Column(String(64))
+    transcription_request_id = Column(String(64))
+    transcribed_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
 
 class Moment(Base):

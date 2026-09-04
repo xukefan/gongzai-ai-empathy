@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
@@ -12,10 +13,15 @@ from schemas import *
 from tuya_client import TuyaClient
 from config import Config
 from ai_service import AIServiceError, generate_diary
+from migrations import migrate_schema
+from asr.asr_service import transcribe_event
+from asr_router import router as asr_router
 
 Base.metadata.create_all(bind=engine)
+migrate_schema(engine)
 
 app = FastAPI(title="共感挂件后端API", version="1.0")
+app.include_router(asr_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -183,6 +189,8 @@ async def upload_voice(
     user_id: str,
     duration: int,
     file: UploadFile = File(...),
+    source: str = "watch",
+    consent: bool = True,
     db: Session = Depends(get_db)
 ):
     if duration <= 0:
@@ -207,11 +215,33 @@ async def upload_voice(
     )
     db.add(voice)
     db.commit()
+
+    transcription = await run_in_threadpool(
+        transcribe_event,
+        file_path,
+        voice.id,
+        source,
+        consent,
+        "zh-CN",
+    )
+    voice.transcript = transcription.get("transcript")
+    voice.transcription_status = transcription.get("status", "failed")
+    voice.transcription_error = transcription.get("error_message")
+    voice.transcription_provider = transcription.get("provider")
+    voice.transcription_request_id = transcription.get("request_id")
+    if voice.transcription_status == "completed":
+        from datetime import datetime
+        voice.transcribed_at = datetime.utcnow()
+    db.commit()
     
     return {
         "voice_id": voice.id,
         "status": "uploaded",
-        "ai_status": "pending"
+        "ai_status": "pending",
+        "transcription_status": voice.transcription_status,
+        "transcript": voice.transcript,
+        "transcription_error": voice.transcription_error,
+        "transcription_request_id": voice.transcription_request_id,
     }
 
 
@@ -242,6 +272,47 @@ def delete_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
     db.delete(voice)
     db.commit()
     return {"status": "deleted", "voice_id": voice_id}
+
+
+def _transcribe_voice_file(file_path: Path, voice_id: str, source: str, consent: bool) -> dict:
+    return transcribe_event(file_path, voice_id, source, consent, "zh-CN")
+
+
+async def _transcribe_voice(voice: VoiceRecord, source: str, consent: bool, db: Session) -> dict:
+    file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
+    if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="voice file not found")
+    voice.transcription_status = "processing"
+    voice.transcription_error = None
+    db.commit()
+    result = await run_in_threadpool(_transcribe_voice_file, file_path, voice.id, source, consent)
+    voice.transcript = result.get("transcript")
+    voice.transcription_status = result.get("status", "failed")
+    voice.transcription_error = result.get("error_message")
+    voice.transcription_provider = result.get("provider")
+    voice.transcription_request_id = result.get("request_id")
+    if voice.transcription_status == "completed":
+        from datetime import datetime
+        voice.transcribed_at = datetime.utcnow()
+    db.commit()
+    return result
+
+
+@app.post("/api/voice/{voice_id}/transcribe")
+async def transcribe_voice(voice_id: str, user_id: str, source: str = "watch", consent: bool = True, db: Session = Depends(get_db)):
+    voice = get_voice_for_owner(voice_id, user_id, db)
+    result = await _transcribe_voice(voice, source, consent, db)
+    return {"voice_id": voice_id, **result}
+
+
+@app.post("/api/voice/{voice_id}/transcript/confirm")
+def confirm_transcript(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+    voice = get_voice_for_owner(voice_id, user_id, db)
+    if voice.transcription_status != "completed" or not voice.transcript:
+        raise HTTPException(status_code=409, detail="transcript is not ready for confirmation")
+    voice.transcription_status = "confirmed"
+    db.commit()
+    return {"voice_id": voice_id, "status": "confirmed", "transcript": voice.transcript}
 
 @app.post("/api/dnd/set")
 def set_dnd(user_id: str, enabled: bool, db: Session = Depends(get_db)):
@@ -287,7 +358,7 @@ class CreateMomentRequest(BaseModel):
 
 class GenerateMomentRequest(BaseModel):
     user_id: str
-    content: str
+    content: Optional[str] = None
     voice_id: Optional[str] = None
     bpm: Optional[int] = None
 
@@ -295,7 +366,14 @@ class GenerateMomentRequest(BaseModel):
 @app.post("/api/moments/generate", response_model=CommonResponse)
 def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
     """Generate and save a diary-style moment from user-approved content."""
-    content = req.content.strip()
+    voice = None
+    if req.voice_id:
+        voice = get_voice_for_owner(req.voice_id, req.user_id, db)
+        if voice.transcription_status != "confirmed" or not voice.transcript:
+            raise HTTPException(status_code=409, detail="voice transcript must be confirmed before AI generation")
+        content = voice.transcript.strip()
+    else:
+        content = (req.content or "").strip()
     if not content:
         raise HTTPException(status_code=422, detail="content must not be empty")
     if len(content) > 10_000:
@@ -313,7 +391,7 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
         title=diary["title"],
         summary=diary["summary"],
         raw_text=content,
-        voice_id=req.voice_id,
+        voice_id=voice.id if voice else req.voice_id,
     )
     db.add(moment)
     db.commit()

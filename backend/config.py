@@ -18,6 +18,9 @@ class Config:
 
     VOICE_STORAGE_DIR = os.getenv("VOICE_STORAGE_DIR", "uploads/voices")
     MAX_VOICE_UPLOAD_BYTES = int(os.getenv("MAX_VOICE_UPLOAD_BYTES", 20 * 1024 * 1024))
+    ASR_INTERNAL_API_KEY = os.getenv("ASR_INTERNAL_API_KEY")
+    ASR_MAX_AUDIO_BYTES = int(os.getenv("ASR_MAX_AUDIO_BYTES", 500 * 1024 * 1024))
+    ASR_LANGUAGE = os.getenv("IFLYTEK_LANGUAGE", "autodialect")
     AI_API_BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.openai.com/v1")
     AI_API_KEY = os.getenv("AI_API_KEY")
     AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")

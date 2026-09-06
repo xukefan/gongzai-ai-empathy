@@ -98,4 +98,31 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 
 `CMakeLists.txt` 会复用当前 TuyaOpen SDK 自带的 `hello_tuya_16k.c` 作为扬声器测试原声，不把第三方二进制和构建产物提交进仓库。
 
-阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。下一步依次接入 Wi-Fi/Tuya DP 和 HTTPS 原声任务。
+阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。
+
+## Tuya 云端桥接（当前进度）
+
+`tuyaopen/src/tuya_cloud_bridge.c` 已接入 TuyaOpen 的云端 worker：
+
+- 启动 Tuya IoT、Wi-Fi 配网和串口授权 CLI；
+- 接收 DP 101 `bpm`，在应用线程中转换为 LED 心跳；
+- 接收 DP 102 `pattern` 并记录，后续可扩展为自定义节奏；
+- 接收 DP 103 `trigger`，触发一次默认心率片段；
+- 用户触摸/按键确认后，排队上报 DP 104 `touch_ack`；
+- 云回调不直接操作 LVGL，避免线程安全问题。
+
+当前产品 PID 为 `irvw50xfd7hcgyw7`。UUID/AuthKey 只允许通过以下任一方式提供，不能提交到 GitHub：
+
+1. 使用 `tyutool_cli authorize` 写入开发板 KV（推荐）；
+2. 本地创建被 `.gitignore` 忽略的 `tuya_config_secrets.h`。
+
+烧录后可先确认授权状态：
+
+```bash
+tyutool_cli authorize --plain --device t5ai \
+  --port /dev/cu.usbmodemXXXXXXXXXXXX
+```
+
+设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，再从产品调试面板下发 DP 101，或先设置 DP 101 再触发 DP 103。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
+
+注意：本固件仍是“云端心率 + LED”联调版本，网络原声下载/播放、录音回复上传和服务器 HTTPS 还未合入；这些功能必须在云桥稳定后再接入。

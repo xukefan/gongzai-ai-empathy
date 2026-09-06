@@ -8,6 +8,7 @@
 #include "app_media.h"
 #include "board_com_api.h"
 #include "gongzai/pendant_controller.h"
+#include "tuya_cloud_bridge.h"
 #include "lv_vendor.h"
 #include "lvgl.h"
 #include "pendant_recorder.h"
@@ -410,6 +411,7 @@ static void acknowledge_event_cb(lv_event_t *event)
     }
 
     pendant_controller_on_touch(&sg_controller);
+    tuya_cloud_bridge_report_touch();
     update_ui_from_controller();
 }
 
@@ -754,6 +756,7 @@ static void process_pending_physical_button(void)
     switch (action) {
     case PENDING_BUTTON_ACKNOWLEDGE:
         pendant_controller_on_touch(&sg_controller);
+        tuya_cloud_bridge_report_touch();
         break;
     case PENDING_BUTTON_RECORD_START:
         (void)pendant_controller_on_record_button_pressed(&sg_controller);
@@ -772,10 +775,23 @@ static void process_pending_physical_button(void)
 static void pendant_tick_cb(lv_timer_t *timer)
 {
     static uint32_t last_ui_refresh_ms = 0U;
+    tuya_cloud_moment_t cloud_moment;
     uint32_t now_ms;
 
     (void)timer;
     process_pending_physical_button();
+    if (tuya_cloud_bridge_take_moment(&cloud_moment)) {
+        sg_selected_bpm = cloud_moment.bpm;
+        if (!pendant_controller_receive_moment(
+                &sg_controller,
+                cloud_moment.event_id,
+                cloud_moment.bpm,
+                HEARTBEAT_DEMO_DURATION_MS,
+                ""
+            )) {
+            PR_ERR("Failed to apply cloud moment: %s", cloud_moment.event_id);
+        }
+    }
     pendant_controller_tick(&sg_controller);
 
     now_ms = pendant_now_ms();
@@ -898,6 +914,9 @@ void user_main(void)
 
     lv_vendor_init(DISPLAY_NAME);
     pendant_ui_create();
+    if (!tuya_cloud_bridge_start()) {
+        PR_ERR("Unable to start Tuya cloud bridge");
+    }
     lv_timer_create(pendant_tick_cb, HEARTBEAT_TICK_MS, NULL);
     receive_demo_moment(sg_selected_bpm);
 

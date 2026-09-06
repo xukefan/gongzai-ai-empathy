@@ -2,6 +2,7 @@
 .env
 *.xcconfig
 !*.example
+tuya_config_secrets.h
 
 # Python
 __pycache__/

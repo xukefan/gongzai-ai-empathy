@@ -9,7 +9,7 @@
 3. [`../../fuwai/ai/contracts/ai-moment-request.schema.json`](../../fuwai/ai/contracts/ai-moment-request.schema.json)：请求 JSON Schema。
 4. [`../../fuwai/ai/contracts/moment.schema.json`](../../fuwai/ai/contracts/moment.schema.json)：响应 JSON Schema。
 5. [`../../fuwai/ai/contracts/ai-error.schema.json`](../../fuwai/ai/contracts/ai-error.schema.json)：错误 JSON Schema。
-6. [`../../backend/ai_prompts.py`](../../backend/ai_prompts.py)：`moment-v1` Prompt 源码。
+6. [`../../backend/ai_prompts.py`](../../backend/ai_prompts.py)：`moment-v5` Prompt 源码。
 
 ## Python 文件
 

@@ -22,7 +22,7 @@ class Config:
     AI_API_KEY = os.getenv("AI_API_KEY")
     AI_MODEL = os.getenv("AI_MODEL", "deepseek-v4-flash")
     AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 30))
-    AI_PROMPT_VERSION = os.getenv("AI_PROMPT_VERSION", "moment-v1")
+    AI_PROMPT_VERSION = os.getenv("AI_PROMPT_VERSION", "moment-v5")
     CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 
     HOST = os.getenv("HOST", "0.0.0.0")

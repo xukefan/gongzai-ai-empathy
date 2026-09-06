@@ -24,7 +24,7 @@ AI_API_BASE_URL=https://api.deepseek.com
 AI_API_KEY=在服务器环境变量中填写，不提交仓库
 AI_MODEL=deepseek-v4-flash
 AI_TIMEOUT_SECONDS=30
-AI_PROMPT_VERSION=moment-v1
+AI_PROMPT_VERSION=moment-v5
 ```
 
 项目适配器会向 `${AI_API_BASE_URL}/chat/completions` 发起 POST 请求，使用 `Authorization: Bearer <key>`。客户端和 GitHub 不接触 API Key。
@@ -78,11 +78,13 @@ Content-Type: application/json
   "suggested_replies": ["辛苦了，结束了就好。"],
   "safety_flags": [],
   "schema_version": 1,
-  "prompt_version": "moment-v1"
+  "prompt_version": "moment-v5"
 }
 ```
 
 `raw_text` 是原始确认转写，`summary` 是 AI 摘要，两者不能互相覆盖。回复建议必须经过用户主动选择后才能发送。
+
+`suggested_replies` 是可选的回复草稿，不是自动发送指令。模型最多返回 3 条，服务端会去空、去重并将每条限制为 200 个字符。草稿只能基于确认转写中明确出现的内容，使用尊重、非强迫的可能性表达，不得虚构关系或承诺，不得加入诊断/医疗/法律建议。遇到自伤、他伤、急性身体不适或无法形成合适回应的内容时，服务端强制返回空数组，并通过 `safety_flags` 交给上层安全流程处理。
 
 ## 5. DeepSeek 请求格式
 
@@ -130,7 +132,7 @@ API 错误结构见 `fuwai/ai/contracts/ai-error.schema.json`。
 
 - `backend/ai_service.py`：业务入口、JSON 校验、安全策略和 fallback；
 - `backend/deepseek_client.py`：DeepSeek HTTP 适配器；
-- `backend/ai_prompts.py`：`moment-v1` 版本 Prompt；
+- `backend/ai_prompts.py`：`moment-v5` 版本 Prompt；
 - `backend/ai_errors.py`：稳定错误码异常；
 - `backend/ai_schemas.py`：Pydantic 输入、输出、错误模型；
 - `backend/ai_service.py`：被 `/api/moments/generate` 调用；

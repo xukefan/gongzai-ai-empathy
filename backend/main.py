@@ -344,7 +344,7 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
             "suggested_replies": diary.get("suggested_replies", []),
             "safety_flags": diary.get("safety_flags", []),
             "schema_version": diary.get("schema_version", 1),
-            "prompt_version": diary.get("prompt_version", "moment-v1"),
+            "prompt_version": diary.get("prompt_version", "moment-v5"),
         },
     )
 

@@ -18,7 +18,9 @@ from deepseek_client import chat_completion
 
 SCHEMA_VERSION = 1
 MAX_TAGS = 5
+MAX_TAG_LENGTH = 20
 MAX_REPLIES = 3
+MAX_REPLY_LENGTH = 200
 HIGH_RISK_TERMS = (
     "自杀", "自残", "轻生", "不想活", "杀了", "伤害自己", "呼吸困难", "胸痛",
 )
@@ -41,8 +43,6 @@ def _fallback_entry(content: str, bpm: Optional[int]) -> dict:
     if len(first_line) > 28:
         title += "…"
     summary = content.strip()[:160]
-    if bpm is not None:
-        summary = f"{summary}（分享时心率约 {bpm} BPM）"
     return {
         "title": title or "生活片段",
         "summary": summary or "记录了一个生活瞬间。",
@@ -83,8 +83,22 @@ def _extract_json(text: str) -> dict[str, Any]:
     if not isinstance(raw_tags, list) or not isinstance(raw_replies, list) or not isinstance(raw_flags, list):
         raise AIServiceError("AI返回的结构化字段类型无效")
 
-    tags = [str(item).strip() for item in raw_tags if str(item).strip()][:MAX_TAGS]
-    replies = [str(item).strip() for item in raw_replies if str(item).strip()][:MAX_REPLIES]
+    tags: list[str] = []
+    for item in raw_tags:
+        tag = str(item).strip()[:MAX_TAG_LENGTH]
+        if not tag or tag in tags:
+            continue
+        tags.append(tag)
+        if len(tags) >= MAX_TAGS:
+            break
+    replies: list[str] = []
+    for item in raw_replies:
+        reply = str(item).strip()[:MAX_REPLY_LENGTH]
+        if not reply or reply in replies:
+            continue
+        replies.append(reply)
+        if len(replies) >= MAX_REPLIES:
+            break
     flags = [str(item).strip() for item in raw_flags if str(item).strip()]
     return {
         "title": title[:100],

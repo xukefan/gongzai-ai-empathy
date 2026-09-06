@@ -29,7 +29,7 @@ class AIMomentResult(BaseModel):
     safety_flags: list[str] = Field(default_factory=list)
     ai_status: str
     schema_version: int = 1
-    prompt_version: str = "moment-v1"
+    prompt_version: str = "moment-v5"
 
 
 class AIErrorResponse(BaseModel):

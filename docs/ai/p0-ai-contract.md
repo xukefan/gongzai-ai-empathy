@@ -45,11 +45,21 @@
   "safety_flags": [],
   "ai_status": "generated",
   "schema_version": 1,
-  "prompt_version": "moment-v1"
+  "prompt_version": "moment-v5"
 }
 ```
 
 `summary` 只能压缩 `content` 中的事实。`suggested_replies` 只是草稿，必须由用户主动选择后才能发送。无模型密钥时 `ai_status=fallback`，不能显示为真实生成成功。
+
+### `suggested_replies` 生成细则
+
+- 返回 0 至 3 条可选回复草稿；每条建议长度为 10 至 60 个字符，服务端硬上限为 200 个字符。
+- 只能回应确认转写中明确出现的事实，不得虚构对方身份、关系、经历、承诺或后续行动。
+- 使用自然、尊重、非强迫的可能性表达；不替对方做决定，不要求立即回复，不诱导透露隐私。
+- 不添加原文没有明确表达的情绪、需求或严重程度，不输出诊断、评价、医疗、法律或危机处置指导。
+- 三条建议应有实际差异，不能只是同义改写；内容模糊、噪声或没有合适回应时返回空数组。
+- 原文包含自伤、他伤或急性身体不适等高风险内容时，必须返回空数组并由 `safety_flags` 标记，不能生成轻率安慰或擅自联系他人的话术。
+- 回复建议永远只是草稿，客户端必须等待用户主动选择后才能发送，服务端不会自动发送。
 
 完整字段约束见 `fuwai/ai/contracts/ai-moment-request.schema.json` 和 `moment.schema.json`。
 
@@ -94,7 +104,7 @@ AI_API_BASE_URL=<OpenAI-compatible base URL>
 AI_API_KEY=<secret, never commit>
 AI_MODEL=<provider model name>
 AI_TIMEOUT_SECONDS=30
-AI_PROMPT_VERSION=moment-v1
+AI_PROMPT_VERSION=moment-v5
 ```
 
 当前适配器使用 OpenAI-compatible Chat Completions 协议。如果最终使用的供应商不是该协议，需要由成员 3 增加 provider adapter，而不是修改客户端或把密钥放入仓库。

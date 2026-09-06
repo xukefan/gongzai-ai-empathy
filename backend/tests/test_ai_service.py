@@ -7,10 +7,78 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import ai_service
+from ai_prompts import MOMENT_SYSTEM_PROMPT, PROMPT_VERSION
 from config import Config
 
 
 class AIServiceTests(unittest.TestCase):
+    def test_title_prompt_is_constrained_for_faithful_short_output(self):
+        self.assertEqual(PROMPT_VERSION, "moment-v5")
+        self.assertIn("6 至 20 个中文字符", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("不输出候选列表", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("不补充原文没有的情绪", MOMENT_SYSTEM_PROMPT)
+
+    def test_summary_prompt_preserves_modality_and_negation(self):
+        self.assertIn("还没完成", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("可能会去", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("计划写成事实", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("明确说出的情绪可以如实保留", MOMENT_SYSTEM_PROMPT)
+
+    def test_tag_prompt_only_allows_explicit_topics(self):
+        self.assertIn("只能概括原文明确出现的主题", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("不得从 BPM、语气、常识", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("返回空数组", MOMENT_SYSTEM_PROMPT)
+
+    def test_reply_prompt_is_optional_non_diagnostic_and_safe(self):
+        self.assertIn("0 至 3 条可选回复草稿", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("不能自动发送", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("不提供医疗、法律或危机处置指导", MOMENT_SYSTEM_PROMPT)
+        self.assertIn("高风险、自伤、他伤或急性身体不适内容时必须返回空数组", MOMENT_SYSTEM_PROMPT)
+
+    def test_model_replies_are_deduplicated_and_limited(self):
+        response = json.dumps({
+            "title": "record", "summary": "a record", "tags": [],
+            "suggested_replies": ["辛苦了", "辛苦了", "x" * 250, "如果你愿意，可以聊聊", "extra"],
+            "safety_flags": [],
+        })
+        with patch.object(Config, "AI_API_KEY", "test-key"), patch.object(
+            ai_service, "_request_model", return_value=response
+        ):
+            result = ai_service.generate_diary("今天完成了答辩")
+        self.assertEqual(result["suggested_replies"], ["辛苦了", "x" * 200, "如果你愿意，可以聊聊"])
+
+    def test_truncation_cannot_create_duplicate_replies_or_tags(self):
+        response = json.dumps({
+            "title": "record", "summary": "a record",
+            "tags": ["y" * 21, "y" * 20],
+            "suggested_replies": ["z" * 201, "z" * 200],
+            "safety_flags": [],
+        })
+        with patch.object(Config, "AI_API_KEY", "test-key"), patch.object(
+            ai_service, "_request_model", return_value=response
+        ):
+            result = ai_service.generate_diary("今天完成了答辩")
+        self.assertEqual(result["tags"], ["y" * 20])
+        self.assertEqual(result["suggested_replies"], ["z" * 200])
+
+    def test_model_tags_are_deduplicated_and_limited(self):
+        response = json.dumps({
+            "title": "record", "summary": "a record",
+            "tags": ["学习", "学习", "x" * 30, "跑步", "地点", "extra"],
+            "suggested_replies": [], "safety_flags": [],
+        })
+        with patch.object(Config, "AI_API_KEY", "test-key"), patch.object(
+            ai_service, "_request_model", return_value=response
+        ):
+            result = ai_service.generate_diary("学习和跑步")
+        self.assertEqual(result["tags"], ["学习", "x" * 20, "跑步", "地点", "extra"])
+
+    def test_fallback_summary_does_not_add_bpm_interpretation(self):
+        with patch.object(Config, "AI_API_KEY", None):
+            result = ai_service.generate_diary("今天完成了慢跑。", bpm=180)
+        self.assertEqual(result["summary"], "今天完成了慢跑。")
+        self.assertNotIn("BPM", result["summary"])
+
     def test_without_key_returns_complete_fallback_schema(self):
         with patch.object(Config, "AI_API_KEY", None):
             result = ai_service.generate_diary("walk with a friend")

@@ -419,8 +419,7 @@ struct ContentView: View {
             let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
             moments = try await client.fetchMoments(userID: currentUserID)
         } catch {
-            // Do not replace the initial screen with an error when the server
-            // is temporarily unavailable; the user can retry with “刷新”.
+            statusText = "回忆加载失败：\(error.localizedDescription)"
         }
     }
 

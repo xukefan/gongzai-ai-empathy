@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
@@ -488,7 +489,9 @@ def get_moments_by_user(
     # intentionally hidden from the normal diary list.
     visible_moments = db.query(Moment).filter(
         Moment.user_id == user_id,
-        Moment.status != "archived",
+        # Rows created before the status column existed may have NULL here;
+        # keep those legacy diary entries visible instead of hiding them.
+        or_(Moment.status.is_(None), Moment.status != "archived"),
     )
 
     moments = visible_moments.order_by(

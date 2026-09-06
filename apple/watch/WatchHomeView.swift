@@ -16,8 +16,17 @@ struct WatchHomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
+                Label("共在 · 此刻", systemImage: "heart.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.pink)
                 Text(heartRateText)
-                    .font(.title3.monospacedDigit())
+                    .font(.system(.largeTitle, design: .rounded, weight: .semibold).monospacedDigit())
+                    .minimumScaleFactor(0.65)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.pink.opacity(0.12), in: RoundedRectangle(cornerRadius: 22))
+                    .accessibilityLabel("当前心率 \(heartRateText)")
 
                 if heartRateRecorder.isCapturing,
                    heartRateRecorder.currentBPM == nil {
@@ -33,11 +42,17 @@ struct WatchHomeView: View {
                         await toggleHeartRateCapture()
                     }
                 }
+                .tint(.pink)
+                .buttonStyle(.borderedProminent)
 
-                Button(audioRecorder.isRecording ? "松开结束录音" : "录制原声") {
+                Button(audioRecorder.isRecording ? "结束录音" : "录一句想说的话") {
                     toggleRecording()
                 }
-                .tint(audioRecorder.isRecording ? .red : .blue)
+                .tint(audioRecorder.isRecording ? .red : .pink)
+                if audioRecorder.isRecording {
+                    Label("正在录音 · 再点一次结束", systemImage: "mic.fill")
+                        .font(.caption2).foregroundStyle(.red)
+                }
 
                 if let packet = connectivity.lastReceivedPacket {
                     Button("感受 \(Int(packet.averageBPM.rounded())) BPM") {
@@ -54,6 +69,7 @@ struct WatchHomeView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.vertical, 6)
             }
             .padding()
         }

@@ -2,6 +2,18 @@ import SwiftUI
 import GongzaiCore
 
 struct ContentView: View {
+    private enum Page: String, CaseIterable {
+        case moment = "此刻", memories = "回忆", devices = "设备"
+        var icon: String {
+            switch self {
+            case .moment: "heart.circle.fill"
+            case .memories: "book.closed.fill"
+            case .devices: "applewatch"
+            }
+        }
+    }
+    @State private var page: Page = .moment
+    private let accent = Color(red: 0.76, green: 0.32, blue: 0.39)
     private enum FocusField: Hashable {
         case apiBaseURL
         case userID
@@ -22,6 +34,21 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("共在 · 把此刻留给彼此", systemImage: "heart.fill")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(accent)
+                        Text(page == .moment ? "今天，有什么想分享？" : page == .memories ? "留住那些小小的瞬间" : "连接，让想念抵达")
+                            .font(.title2.bold())
+                        Text(page == .moment ? "一段原声，一次心跳，一页回忆。" : page == .memories ? "从真实的话语里，慢慢积累我们的故事。" : "管理手表、服务器和你的接收偏好。")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 12)
+                }
+                .listRowBackground(accent.opacity(0.08))
+
+                if page == .devices {
                 Section("连接设置") {
                     TextField("后端地址", text: $apiBaseURL)
                         .textInputAutocapitalization(.never)
@@ -40,6 +67,7 @@ struct ContentView: View {
                     }
                     .disabled(isWorking)
                 }
+                }
 
                 Section("当前状态") {
                     HStack(spacing: 10) {
@@ -51,7 +79,9 @@ struct ContentView: View {
                     }
                 }
 
-                Section("AI 日记") {
+                if page == .moment || page == .memories {
+                Section(page == .moment ? "写下这一刻" : "我们的日记") {
+                    if page == .moment {
                     Text("把这次发送的文字，或服务器转写后的原声内容放在这里，AI 会生成一条可回顾的日记。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -82,10 +112,15 @@ struct ContentView: View {
                         }
                         .disabled(isWorking)
                     }
+                    } else {
+                        Button("刷新回忆", systemImage: "arrow.clockwise") {
+                            Task { await loadMoments() }
+                        }.disabled(isWorking)
+                    }
 
                     if moments.isEmpty {
-                        Text("还没有日记记录")
-                            .foregroundStyle(.secondary)
+                        Label("还没有回忆，从记录第一句话开始。", systemImage: "book.closed")
+                            .foregroundStyle(.secondary).padding(.vertical, 12)
                     } else {
                         ForEach(moments) { moment in
                             VStack(alignment: .leading, spacing: 4) {
@@ -108,7 +143,9 @@ struct ContentView: View {
                         }
                     }
                 }
+                }
 
+                if page == .devices {
                 Section("隐私与勿扰") {
                     Toggle("勿扰模式", isOn: $isDNDEnabled)
                     HStack {
@@ -121,7 +158,9 @@ struct ContentView: View {
                     }
                     .disabled(isWorking)
                 }
+                }
 
+                if page != .memories {
                 Section("Apple Watch") {
                     LabeledContent("连接状态", value: activationLabel)
                     LabeledContent("已配对", value: connectivity.isPaired ? "是" : "否")
@@ -145,14 +184,16 @@ struct ContentView: View {
                     }
 
                     if connectivity.latestVoiceFile != nil {
-                        Button("上传原声并进入转写队列") {
+                        Button("上传这段原声", systemImage: "waveform") {
                             Task { await uploadLatestVoice() }
                         }
                         .disabled(isWorking)
                     }
                 }
+                }
 
 #if DEBUG
+                if page == .devices {
                 Section("单机调试") {
                     Text("向配对的 Apple Watch 发送测试节奏，无需服务器或第二位用户。")
                         .font(.footnote)
@@ -168,6 +209,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                }
 #endif
 
                 if let error = connectivity.lastErrorDescription {
@@ -179,6 +221,26 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("共在")
+            .tint(accent)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    ForEach(Page.allCases, id: \.self) { item in
+                        Button {
+                            focusedField = nil
+                            page = item
+                        } label: {
+                            VStack(spacing: 5) {
+                                Image(systemName: item.icon).font(.title3)
+                                Text(item.rawValue).font(.caption.weight(.semibold))
+                            }
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .foregroundStyle(page == item ? accent : Color.secondary)
+                        }
+                        .accessibilityAddTraits(page == item ? .isSelected : [])
+                    }
+                }
+                .background(.regularMaterial)
+            }
             .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -292,7 +354,7 @@ struct ContentView: View {
                 userID: currentUserID,
                 durationMS: 10_000
             )
-            statusText = "原声已上传：\(response.voiceID)，等待服务器转写"
+            statusText = "原声已保存：\(response.voiceID)。转写结果尚未接入此页面。"
         } catch {
             statusText = error.localizedDescription
         }

@@ -333,15 +333,13 @@ static void update_ui_from_controller(void)
         if (sg_last_reply_size > 0U) {
             lv_label_set_text_fmt(
                 sg_event_label,
-                "片段：%s\n回复：%u 字节",
-                sg_controller.has_active_event ? sg_controller.event_id : "--",
-                sg_last_reply_size
+                "回复已录制\n等待上传接入"
             );
         } else {
             lv_label_set_text_fmt(
                 sg_event_label,
-                "片段：%s",
-                sg_controller.has_active_event ? sg_controller.event_id : "--"
+                "%s",
+                sg_controller.has_active_event ? "本地体验 · 心率与原声" : "选择节奏，体验这一刻"
             );
         }
     }
@@ -350,7 +348,7 @@ static void update_ui_from_controller(void)
         lv_label_set_text(
             sg_reply_button_label,
             sg_controller.state == PENDANT_STATE_RECORDING
-                ? "松开即发送"
+                ? "松开结束录音"
                 : "按住回复"
         );
     }
@@ -443,10 +441,10 @@ static lv_obj_t *create_action_button(
     lv_obj_t *label;
 
     lv_obj_set_size(button, 112, 42);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x183B58), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x49303C), LV_PART_MAIN);
     lv_obj_set_style_bg_color(
         button,
-        lv_color_hex(0x0EA5E9),
+        lv_color_hex(0xB95870),
         LV_PART_MAIN | LV_STATE_PRESSED
     );
     lv_obj_set_style_radius(button, 13, LV_PART_MAIN);
@@ -475,7 +473,7 @@ static void pendant_ui_create(void)
     lv_obj_t *voice_button;
     lv_obj_t *ack_button;
 
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x07111F), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x1C1720), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
     PR_NOTICE(
@@ -493,15 +491,15 @@ static void pendant_ui_create(void)
         title = lv_label_create(screen);
         lv_label_set_text(title, "共在 · 情感挂件");
         lv_obj_set_width(title, content_width);
-        lv_obj_set_style_text_color(title, lv_color_hex(0xE0F2FE), LV_PART_MAIN);
+        lv_obj_set_style_text_color(title, lv_color_hex(0xFFF0F3), LV_PART_MAIN);
         lv_obj_set_style_text_font(title, &font_puhui_16_4, LV_PART_MAIN);
         lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
         subtitle = lv_label_create(screen);
-        lv_label_set_text(subtitle, "心跳灯光 · 原声传递");
+        lv_label_set_text(subtitle, "本地体验 · 留住这一刻");
         lv_obj_set_width(subtitle, content_width);
-        lv_obj_set_style_text_color(subtitle, lv_color_hex(0x64748B), LV_PART_MAIN);
+        lv_obj_set_style_text_color(subtitle, lv_color_hex(0xB3A2AF), LV_PART_MAIN);
         lv_obj_set_style_text_font(subtitle, &font_puhui_16_4, LV_PART_MAIN);
         lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 40);
@@ -512,8 +510,8 @@ static void pendant_ui_create(void)
         lv_obj_clear_flag(sg_pulse_orb, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_radius(sg_pulse_orb, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_border_width(sg_pulse_orb, 2, LV_PART_MAIN);
-        lv_obj_set_style_border_color(sg_pulse_orb, lv_color_hex(0x38BDF8), LV_PART_MAIN);
-        lv_obj_set_style_shadow_color(sg_pulse_orb, lv_color_hex(0x38BDF8), LV_PART_MAIN);
+        lv_obj_set_style_border_color(sg_pulse_orb, lv_color_hex(0xF09AA9), LV_PART_MAIN);
+        lv_obj_set_style_shadow_color(sg_pulse_orb, lv_color_hex(0xF09AA9), LV_PART_MAIN);
 
         sg_bpm_label = lv_label_create(sg_pulse_orb);
         lv_obj_set_style_text_color(sg_bpm_label, lv_color_white(), LV_PART_MAIN);
@@ -522,7 +520,7 @@ static void pendant_ui_create(void)
 
         sg_state_label = lv_label_create(screen);
         lv_obj_set_width(sg_state_label, content_width);
-        lv_obj_set_style_text_color(sg_state_label, lv_color_hex(0x7DD3FC), LV_PART_MAIN);
+        lv_obj_set_style_text_color(sg_state_label, lv_color_hex(0xF4BBC5), LV_PART_MAIN);
         lv_obj_set_style_text_font(sg_state_label, &font_puhui_16_4, LV_PART_MAIN);
         lv_obj_set_style_text_align(sg_state_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_align(sg_state_label, LV_ALIGN_TOP_MID, 0, 207);
@@ -555,21 +553,21 @@ static void pendant_ui_create(void)
             bpm_button_event_cb,
             (void *)(uintptr_t)60U
         );
-        lv_obj_set_width(bpm_button, 82);
+        lv_obj_set_width(bpm_button, (content_width - 12) / 3);
         bpm_button = create_action_button(
             button_row,
             "80次/分",
             bpm_button_event_cb,
             (void *)(uintptr_t)80U
         );
-        lv_obj_set_width(bpm_button, 82);
+        lv_obj_set_width(bpm_button, (content_width - 12) / 3);
         bpm_button = create_action_button(
             button_row,
             "100次/分",
             bpm_button_event_cb,
             (void *)(uintptr_t)100U
         );
-        lv_obj_set_width(bpm_button, 82);
+        lv_obj_set_width(bpm_button, (content_width - 12) / 3);
 
         action_row = lv_obj_create(screen);
         lv_obj_set_size(action_row, content_width, 50);
@@ -591,7 +589,7 @@ static void pendant_ui_create(void)
             play_voice_event_cb,
             NULL
         );
-        lv_obj_set_width(voice_button, 140);
+        lv_obj_set_width(voice_button, (content_width - 12) / 2);
 
         ack_button = create_action_button(
             action_row,
@@ -599,15 +597,15 @@ static void pendant_ui_create(void)
             acknowledge_event_cb,
             NULL
         );
-        lv_obj_set_width(ack_button, 140);
+        lv_obj_set_width(ack_button, (content_width - 12) / 2);
 
         sg_reply_button = lv_btn_create(screen);
         lv_obj_set_size(sg_reply_button, content_width, 42);
         lv_obj_align(sg_reply_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-        lv_obj_set_style_bg_color(sg_reply_button, lv_color_hex(0x7C3AED), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(sg_reply_button, lv_color_hex(0xA4445C), LV_PART_MAIN);
         lv_obj_set_style_bg_color(
             sg_reply_button,
-            lv_color_hex(0xA855F7),
+            lv_color_hex(0xCA6E84),
             LV_PART_MAIN | LV_STATE_PRESSED
         );
         lv_obj_set_style_radius(sg_reply_button, 13, LV_PART_MAIN);
@@ -625,13 +623,13 @@ static void pendant_ui_create(void)
 
     title = lv_label_create(screen);
     lv_label_set_text(title, "共在 · 情感挂件");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xE0F2FE), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFF0F3), LV_PART_MAIN);
     lv_obj_set_style_text_font(title, &font_puhui_16_4, LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 14);
 
     subtitle = lv_label_create(screen);
-    lv_label_set_text(subtitle, "心跳灯光 · 原声传递");
-    lv_obj_set_style_text_color(subtitle, lv_color_hex(0x64748B), LV_PART_MAIN);
+    lv_label_set_text(subtitle, "本地体验 · 留住这一刻");
+    lv_obj_set_style_text_color(subtitle, lv_color_hex(0xB3A2AF), LV_PART_MAIN);
     lv_obj_set_style_text_font(subtitle, &font_puhui_16_4, LV_PART_MAIN);
     lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 45);
 
@@ -641,8 +639,8 @@ static void pendant_ui_create(void)
     lv_obj_clear_flag(sg_pulse_orb, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(sg_pulse_orb, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_border_width(sg_pulse_orb, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(sg_pulse_orb, lv_color_hex(0x38BDF8), LV_PART_MAIN);
-    lv_obj_set_style_shadow_color(sg_pulse_orb, lv_color_hex(0x38BDF8), LV_PART_MAIN);
+    lv_obj_set_style_border_color(sg_pulse_orb, lv_color_hex(0xF09AA9), LV_PART_MAIN);
+    lv_obj_set_style_shadow_color(sg_pulse_orb, lv_color_hex(0xF09AA9), LV_PART_MAIN);
 
     sg_bpm_label = lv_label_create(sg_pulse_orb);
     lv_obj_set_style_text_color(sg_bpm_label, lv_color_white(), LV_PART_MAIN);
@@ -650,11 +648,13 @@ static void pendant_ui_create(void)
     lv_obj_center(sg_bpm_label);
 
     sg_state_label = lv_label_create(screen);
-    lv_obj_set_style_text_color(sg_state_label, lv_color_hex(0x7DD3FC), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sg_state_label, lv_color_hex(0xF4BBC5), LV_PART_MAIN);
     lv_obj_set_style_text_font(sg_state_label, &font_puhui_16_4, LV_PART_MAIN);
     lv_obj_align(sg_state_label, LV_ALIGN_TOP_LEFT, 210, 91);
 
     sg_event_label = lv_label_create(screen);
+    lv_obj_set_width(sg_event_label, screen_width - 222);
+    lv_label_set_long_mode(sg_event_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(sg_event_label, lv_color_hex(0xCBD5E1), LV_PART_MAIN);
     lv_obj_set_style_text_font(sg_event_label, &font_puhui_16_4, LV_PART_MAIN);
     lv_obj_align(sg_event_label, LV_ALIGN_TOP_LEFT, 210, 123);
@@ -728,10 +728,10 @@ static void pendant_ui_create(void)
     sg_reply_button = lv_btn_create(screen);
     lv_obj_set_size(sg_reply_button, 270, 42);
     lv_obj_align(sg_reply_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-    lv_obj_set_style_bg_color(sg_reply_button, lv_color_hex(0x7C3AED), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sg_reply_button, lv_color_hex(0xA4445C), LV_PART_MAIN);
     lv_obj_set_style_bg_color(
         sg_reply_button,
-        lv_color_hex(0xA855F7),
+        lv_color_hex(0xCA6E84),
         LV_PART_MAIN | LV_STATE_PRESSED
     );
     lv_obj_set_style_radius(sg_reply_button, 13, LV_PART_MAIN);

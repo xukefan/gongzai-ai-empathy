@@ -479,18 +479,23 @@ def get_moments_by_user(
     db: Session = Depends(get_db)
 ):
     """
-    查询某个用户的所有生活瞬间，按时间倒序
+    查询某个用户未归档的生活瞬间，按时间倒序
     - user_id: 用户ID
     - limit: 返回条数（默认20）
     - offset: 偏移量（用于分页）
     """
-    moments = db.query(Moment).filter(
-        Moment.user_id == user_id
-    ).order_by(
+    # Archived diary entries remain in the database for history/audit, but are
+    # intentionally hidden from the normal diary list.
+    visible_moments = db.query(Moment).filter(
+        Moment.user_id == user_id,
+        Moment.status != "archived",
+    )
+
+    moments = visible_moments.order_by(
         Moment.created_at.desc()
     ).offset(offset).limit(limit).all()
     
-    total = db.query(Moment).filter(Moment.user_id == user_id).count()
+    total = visible_moments.count()
     
     data = []
     for m in moments:

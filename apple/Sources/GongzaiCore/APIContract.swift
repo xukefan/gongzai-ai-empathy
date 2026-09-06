@@ -39,11 +39,31 @@ public struct BackendVoiceUploadResponse: Codable, Equatable, Sendable {
     public let voiceID: String
     public let status: String
     public let aiStatus: String?
+    public let transcriptionStatus: String?
+    public let transcript: String?
+    public let transcriptionError: String?
+    public let transcriptionRequestID: String?
 
     enum CodingKeys: String, CodingKey {
         case voiceID = "voice_id"
         case status
         case aiStatus = "ai_status"
+        case transcriptionStatus = "transcription_status"
+        case transcript
+        case transcriptionError = "transcription_error"
+        case transcriptionRequestID = "transcription_request_id"
+    }
+}
+
+public struct BackendTranscriptConfirmResponse: Codable, Equatable, Sendable {
+    public let voiceID: String
+    public let status: String
+    public let transcript: String
+
+    enum CodingKeys: String, CodingKey {
+        case voiceID = "voice_id"
+        case status
+        case transcript
     }
 }
 

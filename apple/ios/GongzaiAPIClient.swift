@@ -108,6 +108,26 @@ struct GongzaiAPIClient {
         )
     }
 
+    func confirmTranscript(
+        voiceID: String,
+        userID: String
+    ) async throws -> BackendTranscriptConfirmResponse {
+        let url = try queryURL(
+            path: "api/voice/\(voiceID)/transcript/confirm",
+            items: [URLQueryItem(name: "user_id", value: userID)]
+        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+
+        let (data, response) = try await session.data(for: request)
+        try Self.validate(response: response, body: data)
+        return try GongzaiCoding.decoder().decode(
+            BackendTranscriptConfirmResponse.self,
+            from: data
+        )
+    }
+
     func downloadVoice(voiceID: String, userID: String) async throws -> Data {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("api/voice/\(voiceID)"),

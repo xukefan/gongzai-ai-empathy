@@ -349,14 +349,37 @@ struct ContentView: View {
 
         do {
             let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
-            let response = try await client.uploadVoice(
+            let upload = try await client.uploadVoice(
                 fileURL: voice.localURL,
                 userID: currentUserID,
                 durationMS: 10_000
             )
-            statusText = "原声已保存：\(response.voiceID)。转写结果尚未接入此页面。"
+            guard upload.transcriptionStatus == "completed",
+                  let transcript = upload.transcript?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !transcript.isEmpty
+            else {
+                let reason = upload.transcriptionError ?? "服务器尚未返回可用转写结果"
+                statusText = "原声已保存，但转写未完成：\(reason)"
+                return
+            }
+
+            let confirmed = try await client.confirmTranscript(
+                voiceID: upload.voiceID,
+                userID: currentUserID
+            )
+            let moment = try await client.generateMoment(
+                userID: currentUserID,
+                content: confirmed.transcript,
+                voiceID: confirmed.voiceID,
+                bpm: latestBPM
+            )
+            moments.removeAll { $0.id == moment.id }
+            moments.insert(moment, at: 0)
+            statusText = moment.aiStatus == "fallback"
+                ? "原声已转写，日记已保存（等待服务器配置 AI）"
+                : "原声已转写，AI 日记已生成并保存"
         } catch {
-            statusText = error.localizedDescription
+            statusText = "原声处理失败：\(error.localizedDescription)"
         }
     }
 

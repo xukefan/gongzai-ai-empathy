@@ -347,7 +347,7 @@ AI 禁止诊断情绪或疾病、评价关系质量、编造记忆、自动发�
 - Apple：macOS、Xcode、Swift、SwiftUI、HealthKit、WatchConnectivity、AVFoundation；
 - 挂件：T5AI-Board、TuyaOpen/TuyaOS、C、Wi-Fi、BLE；
 - 后端：Python、FastAPI、SQLAlchemy、Alembic、PostgreSQL/SQLite；
-- AI：Tuya AI Agent 或模型 API、结构化 JSON 输出、自动评估；
+- AI：DeepSeek `deepseek-v4-flash`（服务端 OpenAI-compatible API）、结构化 JSON 输出、自动评估；
 - 协作：GitHub 公开仓库、Issues、Pull Requests；密钥和真实用户数据一律不入库。
 
 ## 当前实现状态

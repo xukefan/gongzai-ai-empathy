@@ -12,6 +12,7 @@
     "suggested_replies": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
     "safety_flags": {"type": "array", "items": {"type": "string"}},
     "ai_status": {"type": "string", "enum": ["generated", "fallback"]},
-    "schema_version": {"type": "integer", "const": 1}
+    "schema_version": {"type": "integer", "const": 1},
+    "prompt_version": {"type": "string", "minLength": 1, "maxLength": 64}
   }
 }

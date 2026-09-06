@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/ai-error.schema.json",
+  "title": "AI Error Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "retryable", "schema_version"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "AI_INVALID_REQUEST",
+        "AI_PROVIDER_UNAVAILABLE",
+        "AI_PROVIDER_AUTH_FAILED",
+        "AI_TIMEOUT",
+        "AI_INVALID_RESPONSE",
+        "AI_OUTPUT_SCHEMA_INVALID",
+        "AI_CONSENT_REQUIRED"
+      ]
+    },
+    "message": {"type": "string", "minLength": 1, "maxLength": 500},
+    "retryable": {"type": "boolean"},
+    "schema_version": {"type": "integer", "const": 1}
+  }
+}

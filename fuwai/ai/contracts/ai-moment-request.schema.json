@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/ai-moment-request.schema.json",
+  "title": "AI Moment Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["user_id", "content"],
+  "properties": {
+    "user_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "content": {"type": "string", "minLength": 1, "maxLength": 10000},
+    "voice_id": {"type": ["string", "null"], "maxLength": 128},
+    "event_id": {"type": ["string", "null"], "maxLength": 128},
+    "recorded_at": {"type": ["string", "null"], "format": "date-time"},
+    "bpm": {"type": ["integer", "null"], "minimum": 30, "maximum": 240},
+    "consent": {"type": "boolean", "const": true},
+    "schema_version": {"type": "integer", "const": 1}
+  }
+}

@@ -306,7 +306,16 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
     try:
         diary = generate_diary(content, req.bpm)
     except AIServiceError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        status_code = 504 if exc.code == "AI_TIMEOUT" else 502
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "retryable": exc.retryable,
+                "schema_version": 1,
+            },
+        ) from exc
 
     moment = Moment(
         user_id=req.user_id,
@@ -331,6 +340,11 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
             "voice_id": moment.voice_id,
             "created_at": moment.created_at.isoformat(),
             "ai_status": diary["ai_status"],
+            "tags": diary.get("tags", []),
+            "suggested_replies": diary.get("suggested_replies", []),
+            "safety_flags": diary.get("safety_flags", []),
+            "schema_version": diary.get("schema_version", 1),
+            "prompt_version": diary.get("prompt_version", "moment-v1"),
         },
     )
 

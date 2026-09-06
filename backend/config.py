@@ -18,10 +18,11 @@ class Config:
 
     VOICE_STORAGE_DIR = os.getenv("VOICE_STORAGE_DIR", "uploads/voices")
     MAX_VOICE_UPLOAD_BYTES = int(os.getenv("MAX_VOICE_UPLOAD_BYTES", 20 * 1024 * 1024))
-    AI_API_BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.openai.com/v1")
+    AI_API_BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.deepseek.com")
     AI_API_KEY = os.getenv("AI_API_KEY")
-    AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
+    AI_MODEL = os.getenv("AI_MODEL", "deepseek-v4-flash")
     AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 30))
+    AI_PROMPT_VERSION = os.getenv("AI_PROMPT_VERSION", "moment-v1")
     CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 
     HOST = os.getenv("HOST", "0.0.0.0")

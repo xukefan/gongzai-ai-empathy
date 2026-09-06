@@ -108,7 +108,20 @@ static void cloud_event_handler(
         switch (dp->id) {
         case GONGZAI_DP_BPM:
             if (dp->type == PROP_VALUE) {
-                queue_cloud_moment((uint16_t)dp->value.dp_value);
+                uint16_t bpm = (uint16_t)dp->value.dp_value;
+
+                if (bpm < 30U) {
+                    bpm = 30U;
+                } else if (bpm > 240U) {
+                    bpm = 240U;
+                }
+                /*
+                 * BPM and pattern are staging values.  The backend sends
+                 * them before the trigger DP; only trigger starts a moment.
+                 * This prevents one heartbeat from being played twice.
+                 */
+                sg_pending_bpm = bpm;
+                PR_NOTICE("Cloud BPM staged: %u", bpm);
             }
             break;
         case GONGZAI_DP_TRIGGER:

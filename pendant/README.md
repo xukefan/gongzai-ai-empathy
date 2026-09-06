@@ -105,7 +105,7 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 `tuyaopen/src/tuya_cloud_bridge.c` 已接入 TuyaOpen 的云端 worker：
 
 - 启动 Tuya IoT、Wi-Fi 配网和串口授权 CLI；
-- 接收 DP 101 `bpm`，在应用线程中转换为 LED 心跳；
+- 接收 DP 101 `bpm` 作为待执行参数，在应用线程中转换为 LED 心跳；
 - 接收 DP 102 `pattern` 并记录，后续可扩展为自定义节奏；
 - 接收 DP 103 `trigger`，触发一次默认心率片段；
 - 用户触摸/按键确认后，排队上报 DP 104 `touch_ack`；
@@ -123,6 +123,6 @@ tyutool_cli authorize --plain --device t5ai \
   --port /dev/cu.usbmodemXXXXXXXXXXXX
 ```
 
-设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，再从产品调试面板下发 DP 101，或先设置 DP 101 再触发 DP 103。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
+设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，从产品调试面板先设置 DP 101（必要时再设置 DP 102），最后将 DP 103 `trigger` 设为 `true` 才会执行一次 LED 心跳。这样可以避免后端按 `bpm → pattern → trigger` 下发时重复执行。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
 
 注意：本固件仍是“云端心率 + LED”联调版本，网络原声下载/播放、录音回复上传和服务器 HTTPS 还未合入；这些功能必须在云桥稳定后再接入。

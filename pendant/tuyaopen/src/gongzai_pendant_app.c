@@ -12,6 +12,7 @@
 #include "lv_vendor.h"
 #include "lvgl.h"
 #include "pendant_recorder.h"
+#include "pendant_http_bridge.h"
 #include "svc_ai_player.h"
 #include "tal_api.h"
 #include "tdl_audio_manage.h"
@@ -411,6 +412,7 @@ static void acknowledge_event_cb(lv_event_t *event)
     }
 
     pendant_controller_on_touch(&sg_controller);
+    pendant_http_bridge_respond(sg_controller.event_id, "touch");
     tuya_cloud_bridge_report_touch();
     update_ui_from_controller();
 }
@@ -756,6 +758,7 @@ static void process_pending_physical_button(void)
     switch (action) {
     case PENDING_BUTTON_ACKNOWLEDGE:
         pendant_controller_on_touch(&sg_controller);
+        pendant_http_bridge_respond(sg_controller.event_id, "touch");
         tuya_cloud_bridge_report_touch();
         break;
     case PENDING_BUTTON_RECORD_START:
@@ -776,10 +779,23 @@ static void pendant_tick_cb(lv_timer_t *timer)
 {
     static uint32_t last_ui_refresh_ms = 0U;
     tuya_cloud_moment_t cloud_moment;
+    pendant_http_moment_t http_moment;
     uint32_t now_ms;
 
     (void)timer;
     process_pending_physical_button();
+    if (pendant_http_bridge_take_moment(&http_moment)) {
+        sg_selected_bpm = http_moment.bpm;
+        if (pendant_controller_receive_moment(
+                &sg_controller,
+                http_moment.event_id,
+                http_moment.bpm,
+                HEARTBEAT_DEMO_DURATION_MS,
+                http_moment.audio_ref
+            )) {
+            pendant_http_bridge_ack(http_moment.event_id, "played");
+        }
+    }
     if (tuya_cloud_bridge_take_moment(&cloud_moment)) {
         sg_selected_bpm = cloud_moment.bpm;
         if (!pendant_controller_receive_moment(
@@ -916,6 +932,9 @@ void user_main(void)
     pendant_ui_create();
     if (!tuya_cloud_bridge_start()) {
         PR_ERR("Unable to start Tuya cloud bridge");
+    }
+    if (!pendant_http_bridge_start()) {
+        PR_ERR("Unable to start FastAPI bridge");
     }
     lv_timer_create(pendant_tick_cb, HEARTBEAT_TICK_MS, NULL);
     receive_demo_moment(sg_selected_bpm);

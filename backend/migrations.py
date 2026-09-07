@@ -25,3 +25,14 @@ def migrate_schema(engine) -> None:
             connection.execute(
                 text("UPDATE voice_records SET transcription_status = 'pending' WHERE transcription_status IS NULL")
             )
+
+    inspector = inspect(engine)
+    if "heartbeat_events" in inspector.get_table_names():
+        heartbeat_columns = {
+            column["name"] for column in inspector.get_columns("heartbeat_events")
+        }
+        if "voice_id" not in heartbeat_columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE heartbeat_events ADD COLUMN voice_id VARCHAR(36)")
+                )

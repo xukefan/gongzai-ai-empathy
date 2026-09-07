@@ -29,4 +29,17 @@
 #define TUYA_OPENSDK_AUTHKEY "authkey-not-installed"
 #endif
 
+#ifndef GONGZAI_API_HOST
+#define GONGZAI_API_HOST "124.221.238.246"
+#endif
+#ifndef GONGZAI_API_PORT
+#define GONGZAI_API_PORT 8000U
+#endif
+#ifndef GONGZAI_PENDANT_DEVICE_ID
+#define GONGZAI_PENDANT_DEVICE_ID "gongzai-pendant-demo"
+#endif
+#ifndef GONGZAI_PENDANT_API_TOKEN
+#define GONGZAI_PENDANT_API_TOKEN ""
+#endif
+
 #endif /* GONGZAI_TUYA_CONFIG_H */

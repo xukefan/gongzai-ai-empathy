@@ -2,7 +2,7 @@
 
 实体挂件由成员 1 负责，比赛版采用 T5AI 开发板。当前技术边界已经固定：
 
-- 通过 Wi-Fi 接入涂鸦云，BLE 仅用于首次配网；
+- 通过 Wi-Fi 直接连接 FastAPI；BLE 仅用于首次配网；涂鸦 DP 保留为兼容层；
 - LED 按真实心率频率闪烁，不使用振动马达；
 - 扬声器播放发送者保存的原声；
 - 用户轻触表示“已收到”；
@@ -100,7 +100,29 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 
 阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。
 
-## Tuya 云端桥接（当前进度）
+## FastAPI 直连（当前主链路）
+
+`tuyaopen/src/pendant_http_bridge.c` 已实现：
+
+- 每 2.5 秒查询一次待播放事件；
+- 按 `device_id` 取得 BPM、`event_id` 与可选原声引用；
+- 将事件送入 LED 心跳状态机；
+- 播放后回传 `played`；
+- 用户触摸后回传 `touch`；
+- 相同事件在明确回执前可重复取得，设备端依据 `event_id` 避免重复体验。
+
+服务器地址、设备 ID 和访问令牌通过本地 `tuya_config_secrets.h` 覆盖，示例：
+
+```c
+#define GONGZAI_API_HOST "api.example.com"
+#define GONGZAI_API_PORT 443U
+#define GONGZAI_PENDANT_DEVICE_ID "pendant-a"
+#define GONGZAI_PENDANT_API_TOKEN "replace-locally"
+```
+
+真实令牌不能提交到 GitHub。当前服务器仍为 HTTP，适合临时联调，不适合承载正式用户原声；上线前必须配置域名和 HTTPS。
+
+## Tuya 云端桥接（可选兼容层）
 
 `tuyaopen/src/tuya_cloud_bridge.c` 已接入 TuyaOpen 的云端 worker：
 
@@ -125,4 +147,4 @@ tyutool_cli authorize --plain --device t5ai \
 
 设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，从产品调试面板先设置 DP 101（必要时再设置 DP 102），最后将 DP 103 `trigger` 设为 `true` 才会执行一次 LED 心跳。这样可以避免后端按 `bpm → pattern → trigger` 下发时重复执行。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
 
-注意：本固件仍是“云端心率 + LED”联调版本，网络原声下载/播放、录音回复上传和服务器 HTTPS 还未合入；这些功能必须在云桥稳定后再接入。
+注意：网络原声下载/播放、录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入。心跳事件与触摸回应已经不再依赖 Tuya 资产可见性。

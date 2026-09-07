@@ -112,17 +112,36 @@ interval_ms = 60000 / BPM
 
 ### 5.1 挂件联网
 
-- Wi-Fi：Tuya 云主链路；
-- BLE：配网、绑定、本地设置和维护；
-- 不把 iPhone 作为长期 BLE 网关；
-- 离线时服务器保存待处理事件，恢复后重新同步。
+- Wi-Fi：T5AI 直接轮询 FastAPI，是当前比赛版主链路；
+- BLE：仅用于首次配网、绑定和维护，不把 iPhone 作为长期网关；
+- Tuya Cloud DP：保留为可选兼容层，不再阻塞比赛主链路；
+- 服务器将事件保留到挂件明确回执，重复轮询依靠 `event_id` 去重；
+- 生产环境必须把当前 HTTP 地址升级为 HTTPS，并配置挂件访问令牌。
 
-### 5.2 音频
+直接链路：
+
+```text
+Watch → iPhone → FastAPI → PostgreSQL
+                         ↑      ↓
+                    T5AI Wi-Fi 事件队列
+```
+
+### 5.2 挂件接口
+
+```text
+GET  /api/pendant/events/next?device_id=<device_id>
+POST /api/pendant/events/{event_id}/ack
+POST /api/pendant/responses
+GET  /api/pendant/voice/{voice_id}?device_id=<device_id>
+```
+
+挂件通过 `X-Pendant-Token` 请求头鉴权。比赛原型允许服务器未配置令牌时联调，正式演示前必须开启。
+
+### 5.3 音频
 
 - 音频不通过 DP 传输；
 - 后端保存私有音频对象；
-- Tuya DP 仅传 `event_id` 或 `voice_task`；
-- 挂件根据任务取得可播放资源；
+- 心跳事件携带 `voice_id`，挂件根据受控地址取得可播放资源；
 - 原声需要由服务端 ASR 读取，因此当前架构不宣称端到端加密；
 - 使用 TLS、私有对象存储、静态加密、权限校验和短期地址保护原声。
 

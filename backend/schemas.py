@@ -7,6 +7,7 @@ class HeartbeatSendRequest(BaseModel):
     receiver_id: str
     bpm: int
     pattern: Optional[str] = None
+    voice_id: Optional[str] = None
 
 class HeartbeatSendResponse(BaseModel):
     event_id: str
@@ -21,6 +22,16 @@ class DeviceBindRequest(BaseModel):
 class DeviceBindResponse(BaseModel):
     status: str
     message: Optional[str] = None
+
+class PendantAckRequest(BaseModel):
+    device_id: str
+    status: str = "played"
+
+class PendantResponseRequest(BaseModel):
+    device_id: str
+    event_id: str
+    response_type: str = "touch"
+    voice_id: Optional[str] = None
 
 class TimelineItem(BaseModel):
     id: str

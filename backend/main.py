@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
@@ -48,7 +48,8 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
         sender_id=req.sender_id,
         receiver_id=req.receiver_id,
         bpm=req.bpm,
-        pattern=req.pattern
+        pattern=req.pattern,
+        voice_id=req.voice_id,
     )
     db.add(event)
     db.commit()
@@ -63,6 +64,13 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
             message="接收方未绑定设备"
         )
     
+    if Config.PENDANT_DELIVERY_MODE != "tuya":
+        return HeartbeatSendResponse(
+            event_id=event_id,
+            status="ok",
+            message="已进入挂件待接收队列"
+        )
+
     try:
         tuya.send_command(device.device_id, Config.TUYA_BPM_CODE, req.bpm)
         if req.pattern:
@@ -85,6 +93,134 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
             status="error",
             message=f"涂鸦下发失败: {str(e)}"
         )
+
+
+def _device_or_404(device_id: str, db: Session) -> Device:
+    device = db.query(Device).filter(Device.device_id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="device is not bound")
+    return device
+
+
+def _verify_pendant_token(x_pendant_token: str | None) -> None:
+    if Config.PENDANT_API_TOKEN and x_pendant_token != Config.PENDANT_API_TOKEN:
+        raise HTTPException(status_code=401, detail="invalid pendant token")
+
+
+@app.get("/api/pendant/events/next")
+def get_next_pendant_event(
+    device_id: str,
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Return the oldest unplayed event; repeat it until the pendant ACKs playback."""
+    _verify_pendant_token(x_pendant_token)
+    device = _device_or_404(device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.receiver_id == device.user_id,
+        HeartbeatEvent.status.in_(["created", "delivered"]),
+    ).order_by(HeartbeatEvent.sent_at.asc()).first()
+    if not event:
+        return {"status": "empty", "event": None}
+
+    if event.status == "created":
+        event.status = "delivered"
+        db.commit()
+
+    return {
+        "status": "ok",
+        "event": {
+            "event_id": event.event_id,
+            "bpm": event.bpm,
+            "pattern": event.pattern,
+            "voice_id": event.voice_id,
+            "audio_url": (
+                f"/api/pendant/voice/{event.voice_id}?device_id={device_id}"
+                if event.voice_id else None
+            ),
+            "sent_at": event.sent_at.isoformat(),
+        },
+    }
+
+
+@app.post("/api/pendant/events/{event_id}/ack")
+def acknowledge_pendant_event(
+    event_id: str,
+    req: PendantAckRequest,
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    _verify_pendant_token(x_pendant_token)
+    device = _device_or_404(req.device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.event_id == event_id,
+        HeartbeatEvent.receiver_id == device.user_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="event not found for this device")
+    allowed = {"delivered", "played", "acknowledged"}
+    if req.status not in allowed:
+        raise HTTPException(status_code=422, detail=f"status must be one of {sorted(allowed)}")
+    event.status = req.status
+    db.commit()
+    return {"status": "ok", "event_id": event_id, "event_status": event.status}
+
+
+@app.post("/api/pendant/responses")
+def create_pendant_response(
+    req: PendantResponseRequest,
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    _verify_pendant_token(x_pendant_token)
+    device = _device_or_404(req.device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.event_id == req.event_id,
+        HeartbeatEvent.receiver_id == device.user_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="event not found for this device")
+    if req.response_type not in {"touch", "tap", "voice"}:
+        raise HTTPException(status_code=422, detail="unsupported response type")
+    response = db.query(Response).filter(
+        Response.event_id == req.event_id,
+        Response.from_user == device.user_id,
+        Response.response_type == req.response_type,
+    ).first()
+    if not response:
+        response = Response(
+            event_id=req.event_id,
+            from_user=device.user_id,
+            response_type=req.response_type,
+        )
+        db.add(response)
+    event.status = "replied"
+    db.commit()
+    return {"status": "ok", "event_id": req.event_id, "response_type": req.response_type}
+
+
+@app.get("/api/pendant/voice/{voice_id}")
+def download_voice_for_pendant(
+    voice_id: str,
+    device_id: str,
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    _verify_pendant_token(x_pendant_token)
+    device = _device_or_404(device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.receiver_id == device.user_id,
+        HeartbeatEvent.voice_id == voice_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=403, detail="voice is not assigned to this device")
+    voice = db.query(VoiceRecord).filter(VoiceRecord.id == voice_id).first()
+    if not voice:
+        raise HTTPException(status_code=404, detail="voice not found")
+    file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
+    if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="voice file not found")
+    return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
 
 @app.post("/api/devices/bind", response_model=DeviceBindResponse)
 def bind_device(req: DeviceBindRequest, db: Session = Depends(get_db)):

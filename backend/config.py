@@ -15,6 +15,9 @@ class Config:
     TUYA_BPM_CODE = os.getenv("TUYA_BPM_CODE", "bpm")
     TUYA_PATTERN_CODE = os.getenv("TUYA_PATTERN_CODE", "pattern")
     TUYA_TRIGGER_CODE = os.getenv("TUYA_TRIGGER_CODE", "trigger")
+    # direct: pendant polls FastAPI over Wi-Fi; tuya: legacy DP delivery.
+    PENDANT_DELIVERY_MODE = os.getenv("PENDANT_DELIVERY_MODE", "direct").strip().lower()
+    PENDANT_API_TOKEN = os.getenv("PENDANT_API_TOKEN")
 
     VOICE_STORAGE_DIR = os.getenv("VOICE_STORAGE_DIR", "uploads/voices")
     MAX_VOICE_UPLOAD_BYTES = int(os.getenv("MAX_VOICE_UPLOAD_BYTES", 20 * 1024 * 1024))

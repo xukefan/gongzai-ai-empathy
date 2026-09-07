@@ -44,7 +44,7 @@ class TuyaClient:
             "sign": sign,
             "t": t,
             "nonce": nonce,
-            "sign_method": "SHA256"
+            "sign_method": "HMAC-SHA256"
         }
         
         response = requests.get(self.endpoint + path, headers=headers, timeout=10)
@@ -75,7 +75,7 @@ class TuyaClient:
             "sign": sign,
             "t": t,
             "nonce": nonce,
-            "sign_method": "SHA256",
+            "sign_method": "HMAC-SHA256",
             "Content-Type": "application/json"
         }
         

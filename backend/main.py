@@ -41,6 +41,13 @@ def health_check():
 
 @app.post("/api/heartbeat/send", response_model=HeartbeatSendResponse)
 def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
+    if req.voice_id:
+        voice = db.query(VoiceRecord).filter(VoiceRecord.id == req.voice_id).first()
+        if not voice:
+            raise HTTPException(status_code=404, detail="voice not found")
+        if voice.user_id != req.sender_id:
+            raise HTTPException(status_code=403, detail="voice does not belong to sender")
+
     event_id = str(uuid.uuid4())
     
     event = HeartbeatEvent(

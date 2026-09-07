@@ -121,7 +121,7 @@ def get_next_pendant_event(
     x_pendant_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    """Return the oldest unplayed event; repeat it until the pendant ACKs playback."""
+    """Return the oldest direct event and keep it queued until the pendant ACKs it."""
     _verify_pendant_token(x_pendant_token)
     device = _device_or_404(device_id, db)
     event = db.query(HeartbeatEvent).filter(
@@ -133,10 +133,6 @@ def get_next_pendant_event(
     ).order_by(HeartbeatEvent.sent_at.asc()).first()
     if not event:
         return {"status": "empty", "event": None}
-
-    if event.status == "created":
-        event.status = "delivered"
-        db.commit()
 
     return {
         "status": "ok",

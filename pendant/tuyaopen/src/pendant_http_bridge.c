@@ -18,6 +18,10 @@
 static THREAD_HANDLE sg_http_thread = NULL;
 static volatile bool sg_pending_moment = false;
 static pendant_http_moment_t sg_moment;
+/* The server repeats a direct event until it receives an ACK.  Remember the
+ * moment accepted by the UI so a dropped ACK does not restart its light
+ * animation on every polling interval. */
+static char sg_last_accepted_event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
 
 static bool network_is_up(void)
 {
@@ -133,6 +137,13 @@ static void poll_once(void)
     if (bpm < 30) bpm = 30;
     if (bpm > 240) bpm = 240;
 
+    if (strcmp(event_id, sg_last_accepted_event_id) == 0) {
+        PR_NOTICE("FastAPI retry received for %s; retrying ACK", event_id);
+        pendant_http_bridge_ack(event_id, "played");
+        tal_free(json);
+        return;
+    }
+
     if (!sg_pending_moment) {
         (void)memset(&sg_moment, 0, sizeof(sg_moment));
         sg_moment.bpm = (uint16_t)bpm;
@@ -170,6 +181,9 @@ bool pendant_http_bridge_take_moment(pendant_http_moment_t *moment)
 {
     if (moment == NULL || !sg_pending_moment) return false;
     *moment = sg_moment;
+    (void)strncpy(sg_last_accepted_event_id, moment->event_id,
+                  sizeof(sg_last_accepted_event_id) - 1U);
+    sg_last_accepted_event_id[sizeof(sg_last_accepted_event_id) - 1U] = '\0';
     sg_pending_moment = false;
     return true;
 }

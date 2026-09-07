@@ -38,3 +38,12 @@ target_compile_options(${EXAMPLE_LIB}
         -Wall
         -Wextra
 )
+
+# A developer may create src/tuya_config_secrets.h locally.  It is ignored by
+# Git and is only included when it actually exists, so fresh clones still build.
+if(EXISTS "${APP_PATH}/src/tuya_config_secrets.h")
+    target_compile_definitions(${EXAMPLE_LIB}
+        PRIVATE
+            GONGZAI_ENABLE_LOCAL_SECRETS=1
+    )
+endif()

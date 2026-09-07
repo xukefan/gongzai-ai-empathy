@@ -10,10 +10,8 @@
 #ifndef GONGZAI_TUYA_CONFIG_H
 #define GONGZAI_TUYA_CONFIG_H
 
-#if defined(__has_include)
-#if __has_include("tuya_config_secrets.h")
+#ifdef GONGZAI_ENABLE_LOCAL_SECRETS
 #include "tuya_config_secrets.h"
-#endif
 #endif
 
 #ifndef TUYA_PRODUCT_ID

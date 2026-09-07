@@ -92,6 +92,10 @@ static bool http_request_json(const char *method, const char *path, const char *
     );
     bool ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
 
+    if (ok) {
+        PR_NOTICE("Pendant HTTP %s %s -> %u, %u bytes", method, path,
+                  response.status_code, (unsigned int)response.body_length);
+    }
     if (ok && response_body != NULL) {
         *response_body = tal_malloc(response.body_length + 1U);
         if (*response_body == NULL) {
@@ -99,8 +103,6 @@ static bool http_request_json(const char *method, const char *path, const char *
         } else {
             memcpy(*response_body, response.body, response.body_length);
             (*response_body)[response.body_length] = '\0';
-            PR_NOTICE("Pendant HTTP %s %s -> %u, %u bytes", method, path,
-                      response.status_code, (unsigned int)response.body_length);
         }
     }
     if (!ok) {

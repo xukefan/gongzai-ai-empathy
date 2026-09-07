@@ -36,3 +36,11 @@ def migrate_schema(engine) -> None:
                 connection.execute(
                     text("ALTER TABLE heartbeat_events ADD COLUMN voice_id VARCHAR(36)")
                 )
+        if "delivery_mode" not in heartbeat_columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE heartbeat_events ADD COLUMN delivery_mode VARCHAR(20)")
+                )
+                connection.execute(
+                    text("UPDATE heartbeat_events SET delivery_mode = 'tuya' WHERE delivery_mode IS NULL")
+                )

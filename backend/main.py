@@ -50,6 +50,7 @@ def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
         bpm=req.bpm,
         pattern=req.pattern,
         voice_id=req.voice_id,
+        delivery_mode=Config.PENDANT_DELIVERY_MODE,
     )
     db.add(event)
     db.commit()
@@ -118,6 +119,7 @@ def get_next_pendant_event(
     device = _device_or_404(device_id, db)
     event = db.query(HeartbeatEvent).filter(
         HeartbeatEvent.receiver_id == device.user_id,
+        HeartbeatEvent.delivery_mode == "direct",
         HeartbeatEvent.status.in_(["created", "delivered"]),
     ).order_by(HeartbeatEvent.sent_at.asc()).first()
     if not event:

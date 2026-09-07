@@ -39,6 +39,7 @@ class HeartbeatEvent(Base):
     bpm = Column(Integer, nullable=False)
     pattern = Column(String(200))
     voice_id = Column(String(36), ForeignKey("voice_records.id"))
+    delivery_mode = Column(String(20), nullable=False, default="direct")
     sent_at = Column(DateTime, server_default=func.now())
     status = Column(String(20), default="created")  # created/uploaded/delivered/played/acknowledged/replied/failed
     

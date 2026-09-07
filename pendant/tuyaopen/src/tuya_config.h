@@ -36,7 +36,7 @@
 #define GONGZAI_API_PORT 8000U
 #endif
 #ifndef GONGZAI_PENDANT_DEVICE_ID
-#define GONGZAI_PENDANT_DEVICE_ID "gongzai-pendant-demo"
+#define GONGZAI_PENDANT_DEVICE_ID "6c0feb73ca44423e91qosi"
 #endif
 #ifndef GONGZAI_PENDANT_API_TOKEN
 #define GONGZAI_PENDANT_API_TOKEN ""

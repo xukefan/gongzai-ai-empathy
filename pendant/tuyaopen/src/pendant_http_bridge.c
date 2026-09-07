@@ -75,6 +75,7 @@ static bool http_request_json(const char *method, const char *path, const char *
         {.key = "Content-Type", .value = "application/json"},
         {.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN},
     };
+    uint8_t header_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U;
     http_client_status_t result = http_client_request(
         &(const http_client_request_t){
             .host = GONGZAI_API_HOST,
@@ -82,7 +83,7 @@ static bool http_request_json(const char *method, const char *path, const char *
             .method = method,
             .path = path,
             .headers = headers,
-            .headers_count = 2U,
+            .headers_count = header_count,
             .body = (const uint8_t *)(body != NULL ? body : ""),
             .body_length = body != NULL ? strlen(body) : 0U,
             .timeout_ms = HTTP_TIMEOUT_MS,
@@ -98,6 +99,8 @@ static bool http_request_json(const char *method, const char *path, const char *
         } else {
             memcpy(*response_body, response.body, response.body_length);
             (*response_body)[response.body_length] = '\0';
+            PR_NOTICE("Pendant HTTP %s %s -> %u, %u bytes", method, path,
+                      response.status_code, (unsigned int)response.body_length);
         }
     }
     if (!ok) {
@@ -120,6 +123,7 @@ static void poll_once(void)
     }
     if (strstr(json, "\"status\":\"empty\"") != NULL ||
         json_string_value(json, "event_id", event_id, sizeof(event_id)) == NULL) {
+        PR_DEBUG("No direct pendant event: %s", json);
         tal_free(json);
         return;
     }

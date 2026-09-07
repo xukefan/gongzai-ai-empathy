@@ -120,7 +120,9 @@ def get_next_pendant_event(
     event = db.query(HeartbeatEvent).filter(
         HeartbeatEvent.receiver_id == device.user_id,
         HeartbeatEvent.delivery_mode == "direct",
-        HeartbeatEvent.status.in_(["created", "delivered"]),
+        # A direct pendant claims an event exactly once. It immediately sends a
+        # playback ACK; later retries are handled by the client upload queue.
+        HeartbeatEvent.status == "created",
     ).order_by(HeartbeatEvent.sent_at.asc()).first()
     if not event:
         return {"status": "empty", "event": None}

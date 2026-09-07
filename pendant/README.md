@@ -109,7 +109,7 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 - 将事件送入 LED 心跳状态机；
 - 播放后回传 `played`；
 - 用户触摸后回传 `touch`；
-- 相同事件在明确回执前可重复取得，设备端依据 `event_id` 避免重复体验。
+- 获取事件后服务端先标记为 `delivered`，挂件完成本地接收后再回传 `played`；比赛版不重复下发同一事件，避免覆盖正在展示的片段。
 
 服务器地址、设备 ID 和访问令牌通过本地 `tuya_config_secrets.h` 覆盖，示例：
 
@@ -147,4 +147,4 @@ tyutool_cli authorize --plain --device t5ai \
 
 设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，从产品调试面板先设置 DP 101（必要时再设置 DP 102），最后将 DP 103 `trigger` 设为 `true` 才会执行一次 LED 心跳。这样可以避免后端按 `bpm → pattern → trigger` 下发时重复执行。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
 
-注意：网络原声下载/播放、录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入。心跳事件与触摸回应已经不再依赖 Tuya 资产可见性。
+注意：网络原声下载/播放、录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入。当前直连版已能跑通“心率事件 + LED + 触摸回应”，原声播放仍使用板载测试音频验证扬声器链路；不得把它表述为“原声已经随事件播放”。

@@ -148,3 +148,18 @@ tyutool_cli authorize --plain --device t5ai \
 设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，从产品调试面板先设置 DP 101（必要时再设置 DP 102），最后将 DP 103 `trigger` 设为 `true` 才会执行一次 LED 心跳。这样可以避免后端按 `bpm → pattern → trigger` 下发时重复执行。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
 
 当前直连版已能跑通“心率事件 + LED + 触摸回应”，服务器会将上传的原始录音保留给 ASR/日记，同时生成 16 kHz 单声道 MP3 供 T5 播放。挂件通过事件级短期签名 URL 获取 MP3；原始录音不会通过挂件接口直接暴露。录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入，当前 HTTP 仅用于开发联调。
+
+## 更换 Wi-Fi（开发板回到另一处网络时）
+
+开发固件启用了 UART0 的调试命令。烧录后用 115200 波特率连接控制串口
+（T5AI 通常是烧录串口，而不是日志串口），依次执行：
+
+```text
+sys_netmgr wifi up <家庭WiFi名称> <家庭WiFi密码>
+kv_set netinfo {"s":"<家庭WiFi名称>","p":"<家庭WiFi密码>"}
+sys_reboot
+```
+
+第一条立即切换网络；第二条把配置保存到板内，第三条重启后验证持久化。命令只
+在本地串口输入，Wi-Fi 密码不得写入源码、提交 Git 或发到群聊。连接成功后可在
+日志串口看到 `WFE_CONNECTED`，随后直连服务会显示网络已恢复。

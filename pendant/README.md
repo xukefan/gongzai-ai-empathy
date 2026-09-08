@@ -46,7 +46,7 @@ ctest --test-dir pendant/build --output-on-failure
 | 接口 | T5AI 上的职责 |
 |---|---|
 | `set_led_brightness` | 已接入屏幕光团和板载 GPIO LED；外接灯环后再换 PWM 驱动 |
-| `play_audio` | 已接入板载扬声器和内存 MP3；网络原声下载待接入 |
+| `play_audio` | 已接入板载扬声器、内存 MP3 和服务器签名 MP3 URL |
 | `start_recording` | 已接入板载麦克风 PCM 采集，按住才启用 |
 | `stop_recording` | 已在 PSRAM 封装 16 kHz/16-bit/单声道 WAV |
 | `upload_recording` | 已暴露内存 WAV 的地址和长度；HTTPS 与服务器鉴权待接入 |
@@ -107,9 +107,9 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 - 每 2.5 秒查询一次待播放事件；
 - 按 `device_id` 取得 BPM、`event_id` 与可选原声引用；
 - 将事件送入 LED 心跳状态机；
-- 播放后回传 `played`；
+- 心跳事件在挂件接受后回传 `played`；带原声事件通过短期签名 MP3 URL 播放，并在播放器结束后回传 `played`；
 - 用户触摸后回传 `touch`；
-- 获取事件后服务端先标记为 `delivered`，挂件完成本地接收后再回传 `played`；比赛版不重复下发同一事件，避免覆盖正在展示的片段。
+- 获取事件后服务端保持事件为 `created`，直到挂件确认；网络或播放失败时挂件释放本地占用，服务端会重试，避免静默丢失片段。
 
 服务器地址、设备 ID 和访问令牌通过本地 `tuya_config_secrets.h` 覆盖，示例：
 
@@ -147,4 +147,4 @@ tyutool_cli authorize --plain --device t5ai \
 
 设备完成授权后，通过 Tuya App 进行 Wi-Fi 配网；配网成功且 MQTT 连接后，从产品调试面板先设置 DP 101（必要时再设置 DP 102），最后将 DP 103 `trigger` 设为 `true` 才会执行一次 LED 心跳。这样可以避免后端按 `bpm → pattern → trigger` 下发时重复执行。DP 101 的范围为 30～240，DP 104 为只读枚举反馈。
 
-注意：网络原声下载/播放、录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入。当前直连版已能跑通“心率事件 + LED + 触摸回应”，原声播放仍使用板载测试音频验证扬声器链路；不得把它表述为“原声已经随事件播放”。
+当前直连版已能跑通“心率事件 + LED + 触摸回应”，服务器会将上传的原始录音保留给 ASR/日记，同时生成 16 kHz 单声道 MP3 供 T5 播放。挂件通过事件级短期签名 URL 获取 MP3；原始录音不会通过挂件接口直接暴露。录音回复的 multipart 上传和服务器 HTTPS 仍需继续接入，当前 HTTP 仅用于开发联调。

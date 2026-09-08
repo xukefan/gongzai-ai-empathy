@@ -16,6 +16,10 @@ def migrate_schema(engine) -> None:
         "transcription_provider": "VARCHAR(64)",
         "transcription_request_id": "VARCHAR(64)",
         "transcribed_at": "TIMESTAMP",
+        "pendant_file_url": "VARCHAR(500)",
+        "pendant_audio_status": "VARCHAR(32)",
+        "pendant_audio_error": "TEXT",
+        "pendant_audio_ready_at": "TIMESTAMP",
     }
     with engine.begin() as connection:
         for name, sql_type in columns.items():
@@ -25,6 +29,12 @@ def migrate_schema(engine) -> None:
             connection.execute(
                 text("UPDATE voice_records SET transcription_status = 'pending' WHERE transcription_status IS NULL")
             )
+        # Existing originals deliberately remain private until an owner asks
+        # the server to create a pendant MP3 for them.
+        connection.execute(
+            text("UPDATE voice_records SET pendant_audio_status = 'unavailable' "
+                 "WHERE pendant_audio_status IS NULL")
+        )
 
     inspector = inspect(engine)
     if "heartbeat_events" in inspector.get_table_names():

@@ -19,7 +19,26 @@ class Config:
     PENDANT_DELIVERY_MODE = os.getenv("PENDANT_DELIVERY_MODE", "direct").strip().lower()
     PENDANT_API_TOKEN = os.getenv("PENDANT_API_TOKEN")
 
+    # The pendant receives an opaque, short-lived URL for a derived MP3.  This
+    # is deliberately separate from PENDANT_API_TOKEN, which remains a header
+    # used only for the pendant's event polling and acknowledgement APIs.
+    PENDANT_PLAYBACK_TICKET_SECRET = os.getenv("PENDANT_PLAYBACK_TICKET_SECRET")
+    PENDANT_PLAYBACK_TICKET_TTL_SECONDS = max(
+        30, min(int(os.getenv("PENDANT_PLAYBACK_TICKET_TTL_SECONDS", "300")), 3600)
+    )
+    PUBLIC_API_BASE_URL = os.getenv("PUBLIC_API_BASE_URL", "").strip().rstrip("/")
+
     VOICE_STORAGE_DIR = os.getenv("VOICE_STORAGE_DIR", "uploads/voices")
+    # Original recordings remain in VOICE_STORAGE_DIR for ASR and diary use.
+    # A normalized, pendant-playable MP3 is written separately so the original
+    # file is never overwritten or exposed to the pendant endpoint.
+    PENDANT_AUDIO_DIR = os.getenv("PENDANT_AUDIO_DIR", "uploads/pendant_audio")
+    FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg")
+    PENDANT_AUDIO_SAMPLE_RATE = int(os.getenv("PENDANT_AUDIO_SAMPLE_RATE", "16000"))
+    PENDANT_AUDIO_BITRATE = os.getenv("PENDANT_AUDIO_BITRATE", "32k")
+    PENDANT_AUDIO_TRANSCODE_TIMEOUT_SECONDS = max(
+        5, min(int(os.getenv("PENDANT_AUDIO_TRANSCODE_TIMEOUT_SECONDS", "30")), 120)
+    )
     MAX_VOICE_UPLOAD_BYTES = int(os.getenv("MAX_VOICE_UPLOAD_BYTES", 20 * 1024 * 1024))
     ASR_INTERNAL_API_KEY = os.getenv("ASR_INTERNAL_API_KEY")
     ASR_MAX_AUDIO_BYTES = int(os.getenv("ASR_MAX_AUDIO_BYTES", 500 * 1024 * 1024))

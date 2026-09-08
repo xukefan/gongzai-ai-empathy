@@ -44,7 +44,8 @@
 - 在 Watch 真机确认修复后的实时 BPM 持续显示和发送；
 - 验证 Watch 原声文件可靠传给 iPhone；
 - 接入 Tuya 产品 PID、设备授权和最终 DP；
-- 打通服务器到挂件的 BPM、`event_id` 和原声任务；
+- 打通服务器到挂件的 BPM、`event_id` 和带短期签名 URL 的原声任务；
+- 在 T5AI 上用 LED 呈现心率节奏，并用板载扬声器播放服务器生成的 MP3；带原声事件在播放结束后再回传 `played`；
 - 挂件使用 HTTPS 上传回复 WAV；
 - 打通挂件确认与回复回传到 Apple Watch；
 - 与服务端 ASR、AI 标题、摘要、标签和回忆工作流联调。

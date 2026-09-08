@@ -6,6 +6,11 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
+import base64
+import hashlib
+import hmac
+import subprocess
+import time
 from pathlib import Path
 
 from database import get_db, engine
@@ -33,7 +38,81 @@ app.add_middleware(
 
 tuya = TuyaClient()
 VOICE_STORAGE_ROOT = (Path(__file__).resolve().parent / Config.VOICE_STORAGE_DIR).resolve()
+PENDANT_AUDIO_ROOT = (Path(__file__).resolve().parent / Config.PENDANT_AUDIO_DIR).resolve()
 ALLOWED_VOICE_EXTENSIONS = {".m4a", ".wav", ".mp3", ".aac"}
+
+
+def _transcode_for_pendant(source_path: Path, output_path: Path) -> tuple[bool, str | None]:
+    """Create a small MP3 stream without changing the private original."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        Config.FFMPEG_BINARY,
+        "-hide_banner", "-loglevel", "error",
+        "-y", "-i", str(source_path),
+        "-vn", "-ac", "1", "-ar", str(Config.PENDANT_AUDIO_SAMPLE_RATE),
+        "-c:a", "libmp3lame", "-b:a", Config.PENDANT_AUDIO_BITRATE,
+        "-f", "mp3", str(output_path),
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=Config.PENDANT_AUDIO_TRANSCODE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, "ffmpeg is not installed on the server"
+    except subprocess.TimeoutExpired:
+        return False, "audio conversion timed out"
+    if completed.returncode != 0 or not output_path.is_file() or output_path.stat().st_size == 0:
+        return False, "audio conversion failed"
+    return True, None
+
+
+def _playback_ticket_payload(device_id: str, event_id: str, voice_id: str, expires_at: int) -> str:
+    return f"{device_id}.{event_id}.{voice_id}.{expires_at}"
+
+
+def _issue_playback_ticket(device_id: str, event_id: str, voice_id: str) -> str | None:
+    secret = Config.PENDANT_PLAYBACK_TICKET_SECRET
+    if not secret:
+        return None
+    expires_at = int(time.time()) + Config.PENDANT_PLAYBACK_TICKET_TTL_SECONDS
+    payload = _playback_ticket_payload(device_id, event_id, voice_id, expires_at)
+    digest = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    signature = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return f"{expires_at}.{signature}"
+
+
+def _verify_playback_ticket(ticket: str, device_id: str, event_id: str, voice_id: str) -> bool:
+    secret = Config.PENDANT_PLAYBACK_TICKET_SECRET
+    if not secret or not ticket:
+        return False
+    try:
+        expires_text, signature = ticket.split(".", 1)
+        expires_at = int(expires_text)
+    except (ValueError, AttributeError):
+        return False
+    if expires_at < int(time.time()):
+        return False
+    payload = _playback_ticket_payload(device_id, event_id, voice_id, expires_at)
+    expected = base64.urlsafe_b64encode(
+        hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    ).decode("ascii").rstrip("=")
+    return hmac.compare_digest(signature, expected)
+
+
+def _pendant_audio_url(event: HeartbeatEvent, device_id: str, voice: VoiceRecord | None) -> str | None:
+    if voice is None or voice.pendant_audio_status != "ready" or not voice.pendant_file_url:
+        return None
+    ticket = _issue_playback_ticket(device_id, event.event_id, voice.id)
+    if not ticket or not Config.PUBLIC_API_BASE_URL:
+        return None
+    return (
+        f"{Config.PUBLIC_API_BASE_URL}/api/pendant/media/{voice.id}.mp3"
+        f"?device_id={device_id}&event_id={event.event_id}&ticket={ticket}"
+    )
 
 @app.get("/api/health")
 def health_check():
@@ -134,6 +213,9 @@ def get_next_pendant_event(
     if not event:
         return {"status": "empty", "event": None}
 
+    voice = db.query(VoiceRecord).filter(VoiceRecord.id == event.voice_id).first() if event.voice_id else None
+    audio_url = _pendant_audio_url(event, device_id, voice)
+
     return {
         "status": "ok",
         "event": {
@@ -141,10 +223,7 @@ def get_next_pendant_event(
             "bpm": event.bpm,
             "pattern": event.pattern,
             "voice_id": event.voice_id,
-            "audio_url": (
-                f"/api/pendant/voice/{event.voice_id}?device_id={device_id}"
-                if event.voice_id else None
-            ),
+            "audio_url": audio_url,
             "sent_at": event.sent_at.isoformat(),
         },
     }
@@ -228,6 +307,39 @@ def download_voice_for_pendant(
     if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
         raise HTTPException(status_code=404, detail="voice file not found")
     return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
+
+
+@app.get("/api/pendant/media/{voice_id}.mp3")
+def download_pendant_audio(
+    voice_id: str,
+    device_id: str,
+    event_id: str,
+    ticket: str,
+    db: Session = Depends(get_db),
+):
+    """Serve only a ready, event-scoped MP3 to the T5 URL player."""
+    if not _verify_playback_ticket(ticket, device_id, event_id, voice_id):
+        raise HTTPException(status_code=403, detail="invalid or expired playback ticket")
+    device = _device_or_404(device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.event_id == event_id,
+        HeartbeatEvent.receiver_id == device.user_id,
+        HeartbeatEvent.voice_id == voice_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=403, detail="audio is not assigned to this device")
+    voice = db.query(VoiceRecord).filter(VoiceRecord.id == voice_id).first()
+    if not voice or voice.pendant_audio_status != "ready" or not voice.pendant_file_url:
+        raise HTTPException(status_code=404, detail="pendant audio is not ready")
+    file_path = (PENDANT_AUDIO_ROOT / voice.pendant_file_url).resolve()
+    if PENDANT_AUDIO_ROOT not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="pendant audio file not found")
+    return FileResponse(
+        file_path,
+        media_type="audio/mpeg",
+        filename=file_path.name,
+        headers={"Cache-Control": "private, max-age=60", "Accept-Ranges": "bytes"},
+    )
 
 @app.post("/api/devices/bind", response_model=DeviceBindResponse)
 def bind_device(req: DeviceBindRequest, db: Session = Depends(get_db)):
@@ -360,6 +472,25 @@ async def upload_voice(
     db.add(voice)
     db.commit()
 
+    pendant_filename = f"{uuid.uuid4()}.mp3"
+    pendant_path = PENDANT_AUDIO_ROOT / pendant_filename
+    pendant_ready, pendant_error = await run_in_threadpool(
+        _transcode_for_pendant,
+        file_path,
+        pendant_path,
+    )
+    if pendant_ready:
+        voice.pendant_file_url = pendant_filename
+        voice.pendant_audio_status = "ready"
+        voice.pendant_audio_error = None
+        from datetime import datetime
+        voice.pendant_audio_ready_at = datetime.utcnow()
+    else:
+        voice.pendant_audio_status = "unavailable"
+        voice.pendant_audio_error = pendant_error
+        if pendant_path.is_file():
+            pendant_path.unlink()
+
     transcription = await run_in_threadpool(
         transcribe_event,
         file_path,
@@ -386,6 +517,7 @@ async def upload_voice(
         "transcript": voice.transcript,
         "transcription_error": voice.transcription_error,
         "transcription_request_id": voice.transcription_request_id,
+        "pendant_audio_status": voice.pendant_audio_status,
     }
 
 
@@ -413,6 +545,10 @@ def delete_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
     file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
     if VOICE_STORAGE_ROOT in file_path.parents and file_path.is_file():
         file_path.unlink()
+    if voice.pendant_file_url:
+        pendant_path = (PENDANT_AUDIO_ROOT / voice.pendant_file_url).resolve()
+        if PENDANT_AUDIO_ROOT in pendant_path.parents and pendant_path.is_file():
+            pendant_path.unlink()
     db.delete(voice)
     db.commit()
     return {"status": "deleted", "voice_id": voice_id}

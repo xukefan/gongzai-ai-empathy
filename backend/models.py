@@ -47,7 +47,15 @@ class VoiceRecord(Base):
     __tablename__ = "voice_records"
     id = Column(String(36), primary_key=True, default=gen_uuid)
     user_id = Column(String(36), nullable=False)
+    # Private original recording, retained for ASR, diary generation and the
+    # sender's own playback.
     file_url = Column(String(500), nullable=False)
+    # A separately derived, normalized MP3 for the T5AI pendant.  It is only
+    # exposed through a signed, event-scoped playback ticket.
+    pendant_file_url = Column(String(500))
+    pendant_audio_status = Column(String(32), nullable=False, default="pending")
+    pendant_audio_error = Column(Text)
+    pendant_audio_ready_at = Column(DateTime)
     duration = Column(Integer)
     transcript = Column(Text)
     transcription_status = Column(String(32), nullable=False, default="pending")

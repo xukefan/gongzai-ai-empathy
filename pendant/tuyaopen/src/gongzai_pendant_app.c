@@ -29,6 +29,7 @@ extern const lv_font_t font_puhui_16_4;
 #define HEARTBEAT_TICK_MS          20U
 #define PHYSICAL_LED_ON_LEVEL      48U
 #define TEST_AUDIO_REF             "embedded://hello-tuya"
+#define URL_AUDIO_START_TIMEOUT_MS (12U * 1000U)
 
 typedef enum {
     PENDING_BUTTON_NONE = 0,
@@ -58,6 +59,16 @@ static uint8_t sg_last_led_level = 0U;
 static bool sg_physical_led_on = false;
 static bool sg_audio_ready = false;
 static uint32_t sg_last_reply_size = 0U;
+/*
+ * URL playback is asynchronous in Tuya's native player.  Keep the direct
+ * FastAPI event ID here until the player has actually entered PLAYING and
+ * then returned to STOPPED.  The LVGL timer only queues the ACK; the HTTP
+ * worker transmits it, so neither the UI nor audio callback blocks on I/O.
+ */
+static char sg_url_audio_event_id[GONGZAI_EVENT_ID_CAPACITY] = {0};
+static bool sg_url_audio_waiting_for_start = false;
+static bool sg_url_audio_playing_seen = false;
+static uint32_t sg_url_audio_requested_ms = 0U;
 
 static const char *pendant_state_name(pendant_state_t state)
 {
@@ -203,6 +214,125 @@ static OPERATE_RET pendant_audio_init(void)
     return OPRT_OK;
 }
 
+static bool is_http_audio_url(const char *audio_ref)
+{
+    return audio_ref != NULL &&
+        (strncmp(audio_ref, "http://", 7U) == 0 ||
+         strncmp(audio_ref, "https://", 8U) == 0);
+}
+
+static bool audio_url_has_extension(const char *url, const char *extension)
+{
+    const char *dot;
+    const char *suffix;
+
+    if (url == NULL || extension == NULL) {
+        return false;
+    }
+    dot = strrchr(url, '.');
+    if (dot == NULL) {
+        return false;
+    }
+    suffix = strpbrk(dot, "?#");
+    if (suffix == NULL) {
+        suffix = url + strlen(url);
+    }
+    return (size_t)(suffix - dot) == strlen(extension) &&
+        strncmp(dot, extension, (size_t)(suffix - dot)) == 0;
+}
+
+static AI_AUDIO_CODEC_E audio_codec_for_url(const char *url)
+{
+    if (audio_url_has_extension(url, ".wav")) {
+        return AI_AUDIO_CODEC_WAV;
+    }
+    if (audio_url_has_extension(url, ".opus")) {
+        return AI_AUDIO_CODEC_OPUS;
+    }
+    if (audio_url_has_extension(url, ".ogg")) {
+        return AI_AUDIO_CODEC_OGGOPUS;
+    }
+    if (audio_url_has_extension(url, ".spx")) {
+        return AI_AUDIO_CODEC_SPEEX;
+    }
+
+    /* The server should publish original voice as MP3, WAV, or Opus.  MP3 is
+     * the compatible default when a signed URL hides the filename extension. */
+    return AI_AUDIO_CODEC_MP3;
+}
+
+static void arm_url_audio_completion_ack(void)
+{
+    (void)strncpy(
+        sg_url_audio_event_id,
+        sg_controller.event_id,
+        sizeof(sg_url_audio_event_id) - 1U
+    );
+    sg_url_audio_event_id[sizeof(sg_url_audio_event_id) - 1U] = '\0';
+    sg_url_audio_waiting_for_start = true;
+    sg_url_audio_playing_seen = false;
+    sg_url_audio_requested_ms = pendant_now_ms();
+    PR_NOTICE("Original voice queued for playback: event=%s", sg_url_audio_event_id);
+}
+
+static void check_url_audio_playback(void)
+{
+    AI_PLAYER_STATE_T state;
+    uint32_t now_ms;
+    char completed_event_id[GONGZAI_EVENT_ID_CAPACITY] = {0};
+
+    if (sg_url_audio_event_id[0] == '\0' || sg_player == NULL) {
+        return;
+    }
+
+    state = tuya_ai_player_get_state(sg_player);
+    now_ms = pendant_now_ms();
+    if (sg_url_audio_waiting_for_start) {
+        if (state == AI_PLAYER_PLAYING) {
+            sg_url_audio_waiting_for_start = false;
+            sg_url_audio_playing_seen = true;
+            PR_NOTICE("Original voice playback started: event=%s", sg_url_audio_event_id);
+        } else if ((uint32_t)(now_ms - sg_url_audio_requested_ms) >=
+                   URL_AUDIO_START_TIMEOUT_MS) {
+            /* Do not report played when the URL could not be opened.  Release
+             * the local claim so the bridge can retry instead of silently
+             * losing a recording. */
+            (void)strncpy(
+                completed_event_id,
+                sg_url_audio_event_id,
+                sizeof(completed_event_id) - 1U
+            );
+            PR_ERR("Original voice did not start before timeout: event=%s", completed_event_id);
+            sg_url_audio_event_id[0] = '\0';
+            sg_url_audio_waiting_for_start = false;
+            if (strcmp(sg_controller.event_id, completed_event_id) == 0) {
+                pendant_controller_on_audio_finished(&sg_controller);
+            }
+            pendant_http_bridge_retry_event(completed_event_id);
+            return;
+        }
+        return;
+    }
+
+    if (sg_url_audio_playing_seen && state == AI_PLAYER_STOPPED) {
+        (void)strncpy(
+            completed_event_id,
+            sg_url_audio_event_id,
+            sizeof(completed_event_id) - 1U
+        );
+        sg_url_audio_event_id[0] = '\0';
+        sg_url_audio_playing_seen = false;
+
+        if (strcmp(sg_controller.event_id, completed_event_id) == 0) {
+            pendant_controller_on_audio_finished(&sg_controller);
+        }
+        /* This only queues work.  pendant_http_bridge's worker performs the
+         * network POST outside the LVGL timer context. */
+        pendant_http_bridge_ack(completed_event_id, "played");
+        PR_NOTICE("Original voice completed; ACK queued: event=%s", completed_event_id);
+    }
+}
+
 static bool pendant_play_audio(const char *audio_ref)
 {
     OPERATE_RET rt;
@@ -212,25 +342,47 @@ static bool pendant_play_audio(const char *audio_ref)
         return false;
     }
 
-    if (strcmp(audio_ref, TEST_AUDIO_REF) != 0) {
-        PR_ERR("Unsupported local audio reference: %s", audio_ref);
+    if (strcmp(audio_ref, TEST_AUDIO_REF) == 0) {
+        TUYA_CALL_ERR_LOG(tuya_ai_playlist_stop(sg_playlist));
+        TUYA_CALL_ERR_LOG(tuya_ai_player_start(
+            sg_player,
+            AI_PLAYER_SRC_MEM,
+            NULL,
+            AI_AUDIO_CODEC_MP3
+        ));
+        TUYA_CALL_ERR_LOG(tuya_ai_player_feed(
+            sg_player,
+            (uint8_t *)media_src_hello_tuya_16k,
+            sizeof(media_src_hello_tuya_16k)
+        ));
+        TUYA_CALL_ERR_LOG(tuya_ai_player_feed(sg_player, NULL, 0));
+        PR_NOTICE("Playing embedded original-voice test audio");
+        return true;
+    }
+
+    if (!is_http_audio_url(audio_ref)) {
+        PR_ERR("Unsupported audio reference: %s", audio_ref);
+        return false;
+    }
+    if (tuya_ai_player_get_state(sg_player) != AI_PLAYER_STOPPED) {
+        PR_WARN("Original voice skipped because another audio stream is active");
         return false;
     }
 
-    TUYA_CALL_ERR_LOG(tuya_ai_playlist_stop(sg_playlist));
-    TUYA_CALL_ERR_LOG(tuya_ai_player_start(
+    /* AI_PLAYER_SRC_URL copies the URL before returning and streams it in the
+     * native player task.  This avoids downloading audio in the LVGL thread. */
+    rt = tuya_ai_player_start(
         sg_player,
-        AI_PLAYER_SRC_MEM,
-        NULL,
-        AI_AUDIO_CODEC_MP3
-    ));
-    TUYA_CALL_ERR_LOG(tuya_ai_player_feed(
-        sg_player,
-        (uint8_t *)media_src_hello_tuya_16k,
-        sizeof(media_src_hello_tuya_16k)
-    ));
-    TUYA_CALL_ERR_LOG(tuya_ai_player_feed(sg_player, NULL, 0));
-    PR_NOTICE("Playing embedded original-voice test audio");
+        AI_PLAYER_SRC_URL,
+        (char *)audio_ref,
+        audio_codec_for_url(audio_ref)
+    );
+    if (rt != OPRT_OK) {
+        PR_ERR("Unable to start original voice URL playback: %d", rt);
+        return false;
+    }
+    arm_url_audio_completion_ack();
+    PR_NOTICE("Streaming original voice from URL");
     return true;
 }
 
@@ -785,6 +937,8 @@ static void pendant_tick_cb(lv_timer_t *timer)
     (void)timer;
     process_pending_physical_button();
     if (pendant_http_bridge_take_moment(&http_moment)) {
+        bool event_has_original_voice = http_moment.audio_ref[0] != '\0';
+
         sg_selected_bpm = http_moment.bpm;
         if (pendant_controller_receive_moment(
                 &sg_controller,
@@ -793,7 +947,19 @@ static void pendant_tick_cb(lv_timer_t *timer)
                 HEARTBEAT_DEMO_DURATION_MS,
                 http_moment.audio_ref
             )) {
-            pendant_http_bridge_ack(http_moment.event_id, "played");
+            if (!event_has_original_voice) {
+                /* A heartbeat-only event is complete as soon as its LED
+                 * animation has been accepted by the state machine. */
+                pendant_http_bridge_ack(http_moment.event_id, "played");
+            } else {
+                /* URL original voice is acknowledged by check_url_audio_playback()
+                 * only after the native player stops. */
+                PR_NOTICE("Deferring ACK until original voice finishes: %s", http_moment.event_id);
+            }
+        } else {
+            /* An invalid or temporarily unavailable original-voice URL must
+             * not become a false `played` event.  Let the bridge retry it. */
+            pendant_http_bridge_retry_event(http_moment.event_id);
         }
     }
     if (tuya_cloud_bridge_take_moment(&cloud_moment)) {
@@ -809,6 +975,7 @@ static void pendant_tick_cb(lv_timer_t *timer)
         }
     }
     pendant_controller_tick(&sg_controller);
+    check_url_audio_playback();
 
     now_ms = pendant_now_ms();
     if ((uint32_t)(now_ms - last_ui_refresh_ms) >= 200U) {

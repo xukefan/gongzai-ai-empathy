@@ -15,7 +15,12 @@ typedef struct {
 
 bool pendant_http_bridge_start(void);
 bool pendant_http_bridge_take_moment(pendant_http_moment_t *moment);
+/* Queues the acknowledgement for the bridge worker; it does not make a
+ * network request in the caller's UI or audio context. */
 void pendant_http_bridge_ack(const char *event_id, const char *status);
+/* Releases a locally claimed event without ACKing it, so a later poll can
+ * retry it after a transient speaker or URL-start failure. */
+void pendant_http_bridge_retry_event(const char *event_id);
 void pendant_http_bridge_respond(const char *event_id, const char *response_type);
 
 #endif

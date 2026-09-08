@@ -46,6 +46,9 @@ class Config:
     AI_API_BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.openai.com/v1")
     AI_API_KEY = os.getenv("AI_API_KEY")
     AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
+    # Keep prompt/version metadata available to newer AI service modules.
+    # An empty value lets the service fall back to its bundled prompt version.
+    AI_PROMPT_VERSION = os.getenv("AI_PROMPT_VERSION", "")
     AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 30))
     CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 

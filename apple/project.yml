@@ -24,6 +24,8 @@ targets:
     platform: iOS
     sources:
       - path: ios
+    resources:
+      - path: ios/Assets.xcassets
     dependencies:
       - package: GongzaiCore
       - target: GongzaiWatch
@@ -33,6 +35,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.xukefan.gongzai
         PRODUCT_NAME: GongzaiIOS
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: Configuration/GongzaiIOS-Info.plist
       properties:
@@ -53,6 +56,8 @@ targets:
     platform: watchOS
     sources:
       - path: watch
+    resources:
+      - path: watch/Assets.xcassets
     dependencies:
       - package: GongzaiCore
     settings:
@@ -60,6 +65,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.xukefan.gongzai.watchkitapp
         PRODUCT_NAME: GongzaiWatch
         TARGETED_DEVICE_FAMILY: "4"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Configuration/GongzaiWatch.entitlements
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: io.github.xukefan.gongzai
     info:

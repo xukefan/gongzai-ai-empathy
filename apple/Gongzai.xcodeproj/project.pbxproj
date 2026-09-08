@@ -17,7 +17,9 @@
 		8E09DE43F1DD7B3ED18B7829 /* GongzaiAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */; };
 		B19E0FB44037FA61F741E79F /* WatchAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7AD71A5A09ECB137BA36BC /* WatchAudioRecorder.swift */; };
 		B6DD67E796A9F7A617302E97 /* PhoneConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1338E947AF5F710FA8F0B29E /* PhoneConnectivityService.swift */; };
+		DCA8D0C38266A47BB2B2531E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 50E4C318E3A890B507502D8C /* Assets.xcassets */; };
 		EA8C105EF980C0096A16223F /* WatchConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E07206CDAC266358C08F15 /* WatchConnectivityService.swift */; };
+		F45E085923E8FA79CFABD43E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C8FCF8030723273AC4659832 /* Assets.xcassets */; };
 		F89CAADDB9D73B2DD17F68AE /* GongzaiIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */; };
 		FB8A579177CE901A9CA113F2 /* HealthKitHeartRateRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */; };
 /* End PBXBuildFile section */
@@ -52,11 +54,13 @@
 		217A84DFEAF7E0B2CA99C653 /* apple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = apple; path = .; sourceTree = SOURCE_ROOT; };
 		429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatHapticPlayer.swift; sourceTree = "<group>"; };
 		4E7AD71A5A09ECB137BA36BC /* WatchAudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAudioRecorder.swift; sourceTree = "<group>"; };
+		50E4C318E3A890B507502D8C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiIOSApp.swift; sourceTree = "<group>"; };
 		69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiAPIClient.swift; sourceTree = "<group>"; };
 		73E07206CDAC266358C08F15 /* WatchConnectivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityService.swift; sourceTree = "<group>"; };
 		795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GongzaiWatchApp.swift; sourceTree = "<group>"; };
 		946CDF186C67F9FB9D6D8570 /* GongzaiIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GongzaiIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C8FCF8030723273AC4659832 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DBB8F735E1094AAE277F354E /* WatchHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHomeView.swift; sourceTree = "<group>"; };
 		E4F148549AF086443FAD69D7 /* GongzaiWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GongzaiWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E686E1649BA0F42975BB709D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -85,6 +89,7 @@
 		4464DD246F3BCCE3E98CB9B6 /* watch */ = {
 			isa = PBXGroup;
 			children = (
+				50E4C318E3A890B507502D8C /* Assets.xcassets */,
 				795C93CA8B9164F8E40FF981 /* GongzaiWatchApp.swift */,
 				0EDB9608C623B517E627EE42 /* HealthKitHeartRateRecorder.swift */,
 				429694C34AAE7B9F7EB64123 /* HeartbeatHapticPlayer.swift */,
@@ -125,6 +130,7 @@
 		FF59CE230AC02A81BDDE01AD /* ios */ = {
 			isa = PBXGroup;
 			children = (
+				C8FCF8030723273AC4659832 /* Assets.xcassets */,
 				E686E1649BA0F42975BB709D /* ContentView.swift */,
 				69A020D0012397FD930670F2 /* GongzaiAPIClient.swift */,
 				6155F8CCB39E6B1FE7872135 /* GongzaiIOSApp.swift */,
@@ -141,6 +147,7 @@
 			buildConfigurationList = 7036D96E420D9E315DA44882 /* Build configuration list for PBXNativeTarget "GongzaiWatch" */;
 			buildPhases = (
 				EBAABC713005A5ADD1A298D8 /* Sources */,
+				47D5404BCF6BC2C7AD7D8A8E /* Resources */,
 				CB44CD4CDAEF32196A4334CB /* Frameworks */,
 			);
 			buildRules = (
@@ -160,6 +167,7 @@
 			buildConfigurationList = E538C640DDF4AE4D497637DC /* Build configuration list for PBXNativeTarget "GongzaiIOS" */;
 			buildPhases = (
 				346976BDDF25B32BE7651974 /* Sources */,
+				07D8926623182C193FE18369 /* Resources */,
 				D15048C5F14401608A2F29CB /* Frameworks */,
 				B32186A6BA91D8B2DE6D47A7 /* Embed Watch Content */,
 			);
@@ -218,6 +226,25 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		07D8926623182C193FE18369 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F45E085923E8FA79CFABD43E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		47D5404BCF6BC2C7AD7D8A8E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCA8D0C38266A47BB2B2531E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		346976BDDF25B32BE7651974 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -259,7 +286,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
-				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
@@ -275,7 +301,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Configuration/GongzaiWatch.entitlements;
-				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiWatch-Info.plist";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.github.xukefan.gongzai;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.xukefan.gongzai.watchkitapp;
@@ -414,7 +439,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -432,7 +456,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = KD6P7XK7YY;
 				INFOPLIST_FILE = "Configuration/GongzaiIOS-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

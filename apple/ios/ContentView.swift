@@ -16,13 +16,15 @@ struct ContentView: View {
     private let accent = Color(red: 0.76, green: 0.32, blue: 0.39)
     private enum FocusField: Hashable {
         case apiBaseURL
-        case userID
+        case partnerUserID
         case diaryContent
     }
 
     @AppStorage("apiBaseURL") private var apiBaseURL = "http://124.221.238.246:8000"
     @AppStorage("currentUserID") private var currentUserID = "demo-user-a"
+    @AppStorage("partnerUserID") private var partnerUserID = ""
 
+    @StateObject private var auth = AuthSession()
     @StateObject private var connectivity = PhoneConnectivityService()
     @State private var statusText = "等待 Apple Watch 数据"
     @State private var isWorking = false
@@ -32,6 +34,21 @@ struct ContentView: View {
     @FocusState private var focusedField: FocusField?
 
     var body: some View {
+        Group {
+            if auth.isAuthenticated {
+                authenticatedContent
+            } else {
+                LoginView(auth: auth)
+            }
+        }
+        .onChange(of: auth.user?.id) { _, newUserID in
+            if let newUserID {
+                currentUserID = newUserID
+            }
+        }
+    }
+
+    private var authenticatedContent: some View {
         NavigationStack {
             Form {
                 Section {
@@ -55,11 +72,20 @@ struct ContentView: View {
                         .autocorrectionDisabled()
                         .focused($focusedField, equals: .apiBaseURL)
                         .submitLabel(.done)
-                    TextField("当前用户 ID", text: $currentUserID)
+                    LabeledContent("当前账号", value: auth.user?.username ?? "已登录")
+                    LabeledContent("用户 ID", value: currentUserID)
+                    TextField("伴侣用户 ID", text: $partnerUserID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .focused($focusedField, equals: .userID)
+                        .focused($focusedField, equals: .partnerUserID)
                         .submitLabel(.done)
+                    Text("填写伴侣账号的用户 ID，服务器才知道把心跳和原声发送到哪一端。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("退出登录", role: .destructive) {
+                        auth.logout()
+                        statusText = "已退出登录"
+                    }
                     Button("测试服务器连接") {
                         focusedField = nil
                         statusText = "正在连接服务器…"
@@ -258,6 +284,9 @@ struct ContentView: View {
                 if apiBaseURL == "http://127.0.0.1:8000" {
                     apiBaseURL = "http://124.221.238.246:8000"
                 }
+                if let authenticatedUserID = auth.user?.id {
+                    currentUserID = authenticatedUserID
+                }
                 await loadMoments()
             }
         }
@@ -282,7 +311,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             let result = try await client.healthCheck()
             statusText = result.status == "ok"
                 ? "服务器已连接：\(result.service)"
@@ -298,7 +327,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             let result = try await client.dndStatus(userID: currentUserID)
             isDNDEnabled = result.isEnabled
             statusText = "已读取服务器勿扰设置"
@@ -313,7 +342,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             let result = try await client.setDND(
                 userID: currentUserID,
                 enabled: isDNDEnabled
@@ -331,8 +360,17 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
-            let response = try await client.sendHeartbeat(packet: packet)
+            let client = try makeClient()
+            // The Watch packet may still contain its local demo identity. The
+            // authenticated iPhone session is the source of truth for the
+            // sender identity sent to the protected API.
+            let response = try await client.sendHeartbeat(
+                packet: packet,
+                senderID: currentUserID,
+                receiverID: partnerUserID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? packet.receiverID
+                    : partnerUserID.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
             statusText = response.status == "ok"
                 ? "心率已提交：\(response.eventID)"
                 : (response.message ?? "后端未接受心率")
@@ -348,7 +386,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             let upload = try await client.uploadVoice(
                 fileURL: voice.localURL,
                 userID: currentUserID,
@@ -392,7 +430,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             let moment = try await client.generateMoment(
                 userID: currentUserID,
                 content: content,
@@ -416,7 +454,7 @@ struct ContentView: View {
         defer { isWorking = false }
 
         do {
-            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let client = try makeClient()
             moments = try await client.fetchMoments(userID: currentUserID)
         } catch {
             statusText = "回忆加载失败：\(error.localizedDescription)"
@@ -426,5 +464,167 @@ struct ContentView: View {
     private var latestBPM: Int? {
         guard let heartbeat = connectivity.latestHeartbeat else { return nil }
         return Int(heartbeat.averageBPM.rounded())
+    }
+
+    private func makeClient() throws -> GongzaiAPIClient {
+        try GongzaiAPIClient(baseURLString: apiBaseURL, accessToken: auth.accessToken)
+    }
+}
+
+struct LoginView: View {
+    @ObservedObject var auth: AuthSession
+
+    @AppStorage("apiBaseURL") private var apiBaseURL = "http://124.221.238.246:8000"
+    @State private var isRegistering = false
+    @State private var username = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var isWorking = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case apiBaseURL, username, password, confirmPassword
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("共在", systemImage: "heart.fill")
+                            .font(.title2.bold())
+                            .foregroundStyle(Color(red: 0.76, green: 0.32, blue: 0.39))
+                        Text(isRegistering ? "创建账号，开始记录属于你们的生活瞬间。" : "登录后才能安全同步心跳、原声和回忆。")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                Section("账号信息") {
+                    TextField("用户名（3～50个字符）", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.username)
+                        .focused($focusedField, equals: .username)
+                        .submitLabel(.next)
+
+                    SecureField("密码（至少8个字符）", text: $password)
+                        .textContentType(isRegistering ? .newPassword : .password)
+                        .focused($focusedField, equals: .password)
+                        .submitLabel(isRegistering ? .next : .go)
+
+                    if isRegistering {
+                        SecureField("再次输入密码", text: $confirmPassword)
+                            .textContentType(.newPassword)
+                            .focused($focusedField, equals: .confirmPassword)
+                            .submitLabel(.go)
+                    }
+                }
+
+                Section("服务器") {
+                    TextField("后端地址", text: $apiBaseURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .focused($focusedField, equals: .apiBaseURL)
+                        .submitLabel(.done)
+                    Text("当前使用共在后端服务。若地址发生变化，可在这里替换。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Button {
+                        focusedField = nil
+                        Task { await submit() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isWorking {
+                                ProgressView()
+                            }
+                            Text(isRegistering ? "注册并登录" : "登录")
+                                .font(.headline)
+                            Spacer()
+                        }
+                    }
+                    .disabled(isWorking)
+                }
+
+                if let errorMessage, !errorMessage.isEmpty {
+                    Section("提示") {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                Section {
+                    Button(isRegistering ? "已有账号？返回登录" : "没有账号？立即注册") {
+                        errorMessage = nil
+                        isRegistering.toggle()
+                        confirmPassword = ""
+                    }
+                }
+            }
+            .navigationTitle(isRegistering ? "创建账号" : "登录共在")
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
+                }
+            }
+            .onSubmit {
+                if isRegistering && focusedField == .password {
+                    focusedField = .confirmPassword
+                } else {
+                    focusedField = nil
+                    Task { await submit() }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func submit() async {
+        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleanUsername.count >= 3 else {
+            errorMessage = "用户名至少需要3个字符。"
+            return
+        }
+        guard password.count >= 8 else {
+            errorMessage = "密码至少需要8个字符。"
+            return
+        }
+        if isRegistering && password != confirmPassword {
+            errorMessage = "两次输入的密码不一致。"
+            return
+        }
+
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+
+        do {
+            let client = try GongzaiAPIClient(baseURLString: apiBaseURL)
+            let response: BackendAuthResponse
+            if isRegistering {
+                response = try await client.register(
+                    username: cleanUsername,
+                    password: password
+                )
+            } else {
+                response = try await client.login(
+                    username: cleanUsername,
+                    password: password
+                )
+            }
+            auth.save(response)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

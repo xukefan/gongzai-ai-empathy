@@ -5,6 +5,17 @@ from sqlalchemy import inspect, text
 
 def migrate_schema(engine) -> None:
     inspector = inspect(engine)
+    if "users" in inspector.get_table_names():
+        existing_user_columns = {
+            column["name"] for column in inspector.get_columns("users")
+        }
+        if "password_hash" not in existing_user_columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)")
+                )
+
+    inspector = inspect(engine)
     if "voice_records" not in inspector.get_table_names():
         return
 

@@ -11,6 +11,9 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=gen_uuid)
     username = Column(String(50), unique=True, nullable=False)
     phone = Column(String(20), unique=True, nullable=False)
+    # Nullable keeps existing prototype rows readable; newly registered users
+    # always receive a password hash through the auth endpoints.
+    password_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 class Relationship(Base):

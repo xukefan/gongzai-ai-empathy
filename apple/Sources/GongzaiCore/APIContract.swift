@@ -8,9 +8,13 @@ public struct BackendHeartbeatSendRequest: Codable, Equatable, Sendable {
     public let bpm: Int
     public let pattern: String?
 
-    public init(packet: HeartbeatPacket) {
-        senderID = packet.senderID
-        receiverID = packet.receiverID
+    public init(
+        packet: HeartbeatPacket,
+        senderID overrideSenderID: String? = nil,
+        receiverID overrideReceiverID: String? = nil
+    ) {
+        senderID = overrideSenderID ?? packet.senderID
+        receiverID = overrideReceiverID ?? packet.receiverID
         bpm = Int(packet.averageBPM.rounded())
         pattern = packet.beatIntervalsMS.map(String.init).joined(separator: ",")
     }

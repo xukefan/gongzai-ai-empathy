@@ -2,6 +2,31 @@ from pydantic import BaseModel
 from typing import Any, Optional
 from datetime import datetime
 
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    phone: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthUserResponse(BaseModel):
+    id: str
+    username: str
+    phone: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: int
+    user: AuthUserResponse
+
 class HeartbeatSendRequest(BaseModel):
     sender_id: str
     receiver_id: str

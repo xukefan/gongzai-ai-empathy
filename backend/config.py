@@ -5,6 +5,14 @@ load_dotenv()
 
 class Config:
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coglink.db")
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+
+    # User authentication.  Set a long random value in the server's private
+    # .env; the development fallback is intentionally rejected in production.
+    AUTH_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "dev-only-change-this")
+    AUTH_TOKEN_TTL_SECONDS = max(
+        300, min(int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "604800")), 2_592_000)
+    )
 
     # Keep credentials outside source control. Set these in the deployment environment.
     TUYA_ACCESS_ID = os.getenv("TUYA_ACCESS_ID")

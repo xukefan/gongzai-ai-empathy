@@ -22,6 +22,7 @@ from ai_service import AIServiceError, generate_diary
 from migrations import migrate_schema
 from asr.asr_service import transcribe_event
 from asr_router import router as asr_router
+from auth import create_access_token, get_current_user, hash_password, require_user_id, verify_password
 
 Base.metadata.create_all(bind=engine)
 migrate_schema(engine)
@@ -118,8 +119,74 @@ def _pendant_audio_url(event: HeartbeatEvent, device_id: str, voice: VoiceRecord
 def health_check():
     return {"status": "ok", "service": "coglink-backend"}
 
+
+def _auth_user_payload(user: User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "phone": user.phone,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+@app.post("/api/auth/register", response_model=AuthResponse)
+def register(req: RegisterRequest, db: Session = Depends(get_db)):
+    username = req.username.strip()
+    if len(username) < 3 or len(username) > 50:
+        raise HTTPException(status_code=422, detail="用户名长度需要在3到50个字符之间")
+    if len(req.password) < 8 or len(req.password) > 128:
+        raise HTTPException(status_code=422, detail="密码长度需要在8到128个字符之间")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=409, detail="用户名已存在")
+
+    # The legacy User table has a required phone column. For this prototype
+    # phone verification is intentionally omitted. A short deterministic
+    # internal value keeps old databases compatible without storing a fake
+    # phone number or exceeding the column's VARCHAR(20) limit.
+    phone = (req.phone or f"u_{hashlib.sha256(username.encode('utf-8')).hexdigest()[:18]}").strip()
+    if len(phone) > 20:
+        raise HTTPException(status_code=422, detail="手机号长度不能超过20个字符")
+    if db.query(User).filter(User.phone == phone).first():
+        raise HTTPException(status_code=409, detail="手机号已存在")
+
+    user = User(username=username, phone=phone, password_hash=hash_password(req.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token, expires_at = create_access_token(user)
+    return AuthResponse(
+        access_token=token,
+        expires_at=expires_at,
+        user=AuthUserResponse(**_auth_user_payload(user)),
+    )
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == req.username.strip()).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    token, expires_at = create_access_token(user)
+    return AuthResponse(
+        access_token=token,
+        expires_at=expires_at,
+        user=AuthUserResponse(**_auth_user_payload(user)),
+    )
+
+
+@app.get("/api/auth/me", response_model=AuthUserResponse)
+def current_user_profile(current_user: User = Depends(get_current_user)):
+    return AuthUserResponse(**_auth_user_payload(current_user))
+
 @app.post("/api/heartbeat/send", response_model=HeartbeatSendResponse)
-def send_heartbeat(req: HeartbeatSendRequest, db: Session = Depends(get_db)):
+def send_heartbeat(
+    req: HeartbeatSendRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, req.sender_id)
+    if req.receiver_id == req.sender_id:
+        raise HTTPException(status_code=422, detail="发送方和接收方不能相同")
     if req.voice_id:
         voice = db.query(VoiceRecord).filter(VoiceRecord.id == req.voice_id).first()
         if not voice:
@@ -342,7 +409,12 @@ def download_pendant_audio(
     )
 
 @app.post("/api/devices/bind", response_model=DeviceBindResponse)
-def bind_device(req: DeviceBindRequest, db: Session = Depends(get_db)):
+def bind_device(
+    req: DeviceBindRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, req.user_id)
     existing = db.query(Device).filter(Device.device_id == req.device_id).first()
     if existing:
         return DeviceBindResponse(status="error", message="设备已被绑定")
@@ -362,7 +434,12 @@ def bind_device(req: DeviceBindRequest, db: Session = Depends(get_db)):
     return DeviceBindResponse(status="ok", message="绑定成功")
 
 @app.get("/api/timeline")
-def get_timeline(user_id: str, db: Session = Depends(get_db)):
+def get_timeline(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     events = db.query(HeartbeatEvent).filter(
         (HeartbeatEvent.sender_id == user_id) | 
         (HeartbeatEvent.receiver_id == user_id)
@@ -382,7 +459,12 @@ def get_timeline(user_id: str, db: Session = Depends(get_db)):
     return {"moments": moments}
 
 @app.get("/api/relationship/{user_id}")
-def get_relationship(user_id: str, db: Session = Depends(get_db)):
+def get_relationship(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     rel = db.query(Relationship).filter(
         (Relationship.user_a_id == user_id) | 
         (Relationship.user_b_id == user_id),
@@ -401,7 +483,17 @@ def get_relationship(user_id: str, db: Session = Depends(get_db)):
     }
 
 @app.post("/api/relationship/create")
-def create_relationship(user_a_id: str, user_b_id: str, db: Session = Depends(get_db)):
+def create_relationship(
+    user_a_id: str,
+    user_b_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_a_id)
+    if user_a_id == user_b_id:
+        raise HTTPException(status_code=422, detail="不能与自己绑定")
+    if not db.query(User).filter(User.id == user_b_id).first():
+        raise HTTPException(status_code=404, detail="接收方用户不存在")
     import random, string
     invite_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     
@@ -447,8 +539,10 @@ async def upload_voice(
     file: UploadFile = File(...),
     source: str = "watch",
     consent: bool = True,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    require_user_id(current_user, user_id)
     if duration <= 0:
         raise HTTPException(status_code=422, detail="duration must be positive")
     suffix = Path(file.filename or "").suffix.lower()
@@ -531,7 +625,13 @@ def get_voice_for_owner(voice_id: str, user_id: str, db: Session) -> VoiceRecord
 
 
 @app.get("/api/voice/{voice_id}")
-def download_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+def download_voice(
+    voice_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     voice = get_voice_for_owner(voice_id, user_id, db)
     file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
     if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
@@ -540,7 +640,13 @@ def download_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
 
 
 @app.delete("/api/voice/{voice_id}")
-def delete_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+def delete_voice(
+    voice_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     voice = get_voice_for_owner(voice_id, user_id, db)
     file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
     if VOICE_STORAGE_ROOT in file_path.parents and file_path.is_file():
@@ -579,14 +685,28 @@ async def _transcribe_voice(voice: VoiceRecord, source: str, consent: bool, db: 
 
 
 @app.post("/api/voice/{voice_id}/transcribe")
-async def transcribe_voice(voice_id: str, user_id: str, source: str = "watch", consent: bool = True, db: Session = Depends(get_db)):
+async def transcribe_voice(
+    voice_id: str,
+    user_id: str,
+    source: str = "watch",
+    consent: bool = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     voice = get_voice_for_owner(voice_id, user_id, db)
     result = await _transcribe_voice(voice, source, consent, db)
     return {"voice_id": voice_id, **result}
 
 
 @app.post("/api/voice/{voice_id}/transcript/confirm")
-def confirm_transcript(voice_id: str, user_id: str, db: Session = Depends(get_db)):
+def confirm_transcript(
+    voice_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     voice = get_voice_for_owner(voice_id, user_id, db)
     if voice.transcription_status != "completed" or not voice.transcript:
         raise HTTPException(status_code=409, detail="transcript is not ready for confirmation")
@@ -595,7 +715,13 @@ def confirm_transcript(voice_id: str, user_id: str, db: Session = Depends(get_db
     return {"voice_id": voice_id, "status": "confirmed", "transcript": voice.transcript}
 
 @app.post("/api/dnd/set")
-def set_dnd(user_id: str, enabled: bool, db: Session = Depends(get_db)):
+def set_dnd(
+    user_id: str,
+    enabled: bool,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     setting = db.query(DoNotDisturbSetting).filter(DoNotDisturbSetting.user_id == user_id).first()
     if setting:
         setting.enabled = enabled
@@ -605,12 +731,22 @@ def set_dnd(user_id: str, enabled: bool, db: Session = Depends(get_db)):
     return {"status": "ok", "dnd_enabled": enabled}
 
 @app.get("/api/dnd/status")
-def get_dnd(user_id: str, db: Session = Depends(get_db)):
+def get_dnd(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     setting = db.query(DoNotDisturbSetting).filter(DoNotDisturbSetting.user_id == user_id).first()
     return {"dnd_enabled": setting.enabled if setting else False}
 
 @app.post("/api/relationships/unbind")
-def unbind_relationship(user_id: str, db: Session = Depends(get_db)):
+def unbind_relationship(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_user_id(current_user, user_id)
     rel = db.query(Relationship).filter(
         (Relationship.user_a_id == user_id) | 
         (Relationship.user_b_id == user_id)
@@ -644,8 +780,13 @@ class GenerateMomentRequest(BaseModel):
 
 
 @app.post("/api/moments/generate", response_model=CommonResponse)
-def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
+def generate_moment(
+    req: GenerateMomentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Generate and save a diary-style moment from user-approved content."""
+    require_user_id(current_user, req.user_id)
     voice = None
     if req.voice_id:
         voice = get_voice_for_owner(req.voice_id, req.user_id, db)
@@ -694,7 +835,11 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/moments", response_model=CommonResponse)
-def create_moment(req: CreateMomentRequest, db: Session = Depends(get_db)):
+def create_moment(
+    req: CreateMomentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     创建一个生活瞬间
     请求体 JSON 格式：
@@ -705,6 +850,7 @@ def create_moment(req: CreateMomentRequest, db: Session = Depends(get_db)):
         "voice_id": "可选"
     }
     """
+    require_user_id(current_user, req.user_id)
     moment = Moment(
         user_id=req.user_id,
         title=req.title,
@@ -728,12 +874,17 @@ def create_moment(req: CreateMomentRequest, db: Session = Depends(get_db)):
     )
 # 2. 查询单条生活瞬间
 @app.get("/api/moments/{moment_id}", response_model=CommonResponse)
-def get_moment(moment_id: str, db: Session = Depends(get_db)):
+def get_moment(
+    moment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """根据ID查询一条生活瞬间的完整信息"""
     moment = db.query(Moment).filter(Moment.id == moment_id).first()
     
     if not moment:
         return CommonResponse(code=404, msg="生活瞬间不存在")
+    require_user_id(current_user, moment.user_id)
     
     return CommonResponse(
         code=0,
@@ -756,7 +907,8 @@ def get_moments_by_user(
     user_id: str,
     limit: int = 20,
     offset: int = 0,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     查询某个用户未归档的生活瞬间，按时间倒序
@@ -764,6 +916,7 @@ def get_moments_by_user(
     - limit: 返回条数（默认20）
     - offset: 偏移量（用于分页）
     """
+    require_user_id(current_user, user_id)
     # Archived diary entries remain in the database for history/audit, but are
     # intentionally hidden from the normal diary list.
     visible_moments = db.query(Moment).filter(
@@ -804,7 +957,8 @@ def get_moments_by_user(
 def update_moment_status(
     moment_id: str,
     status: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     更新生活瞬间的状态
@@ -818,6 +972,7 @@ def update_moment_status(
     
     if not moment:
         return CommonResponse(code=404, msg="生活瞬间不存在")
+    require_user_id(current_user, moment.user_id)
     
     moment.status = status
     db.commit()
@@ -831,12 +986,17 @@ def update_moment_status(
 
 # 5. 删除生活瞬间（软删除，实际是标记为已归档）
 @app.delete("/api/moments/{moment_id}", response_model=CommonResponse)
-def delete_moment(moment_id: str, db: Session = Depends(get_db)):
+def delete_moment(
+    moment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """删除生活瞬间（软删除，标记为 archived）"""
     moment = db.query(Moment).filter(Moment.id == moment_id).first()
     
     if not moment:
         return CommonResponse(code=404, msg="生活瞬间不存在")
+    require_user_id(current_user, moment.user_id)
     
     moment.status = "archived"
     db.commit()

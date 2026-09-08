@@ -269,6 +269,24 @@ created → uploaded → delivered → played → acknowledged → replied
 
 音频文件不通过 DP 传输；DP 只传任务或资源标识。
 
+### 登录与认证（新增）
+
+业务接口现在需要登录后访问。后端提供：
+
+```text
+POST /api/auth/register   # 注册并返回 Bearer Token
+POST /api/auth/login      # 登录并返回 Bearer Token
+GET  /api/auth/me         # 查询当前账号
+```
+
+iPhone App 首次打开会显示登录/注册页，登录成功后把令牌存入系统 Keychain，后续心跳、原声、日记、勿扰和设备接口会自动携带
+`Authorization: Bearer <token>`。密码不会保存在 App 中。
+
+后端使用 PBKDF2-SHA256 保存密码摘要，并使用 HMAC-SHA256 签发短期 JWT。部署时必须在服务器的私有 `.env` 设置随机的
+`AUTH_SECRET_KEY`，生产环境禁止使用 `.env.example` 中的开发默认值。挂件轮询接口继续使用独立的 `X-Pendant-Token`，不与用户登录令牌混用。
+
+现有旧演示用户没有密码摘要，不能直接登录；请通过 App 注册新账号，或由管理员为旧数据建立迁移账号。登录后在“设备”页填写伴侣的用户 ID，才能把事件发送给正确的接收端。
+
 ### AI 日记接口（当前原型）
 
 用户确认发送内容后，由服务器 AI 生成并保存日记：

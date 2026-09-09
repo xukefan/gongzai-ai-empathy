@@ -40,7 +40,10 @@ class HeartbeatEvent(Base):
     sender_id = Column(String(36), nullable=False)
     receiver_id = Column(String(36), nullable=False)
     bpm = Column(Integer, nullable=False)
-    pattern = Column(String(200))
+    # A heart-beat interval sequence may contain dozens of samples.  It is
+    # deliberately stored as TEXT instead of a short VARCHAR so a normal
+    # Watch recording cannot fail while creating the pendant event.
+    pattern = Column(Text)
     voice_id = Column(String(36), ForeignKey("voice_records.id"))
     delivery_mode = Column(String(20), nullable=False, default="direct")
     sent_at = Column(DateTime, server_default=func.now())

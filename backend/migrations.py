@@ -49,8 +49,9 @@ def migrate_schema(engine) -> None:
 
     inspector = inspect(engine)
     if "heartbeat_events" in inspector.get_table_names():
+        heartbeat_column_definitions = inspector.get_columns("heartbeat_events")
         heartbeat_columns = {
-            column["name"] for column in inspector.get_columns("heartbeat_events")
+            column["name"] for column in heartbeat_column_definitions
         }
         if "voice_id" not in heartbeat_columns:
             with engine.begin() as connection:
@@ -64,4 +65,27 @@ def migrate_schema(engine) -> None:
                 )
                 connection.execute(
                     text("UPDATE heartbeat_events SET delivery_mode = 'tuya' WHERE delivery_mode IS NULL")
+                )
+
+        # Early prototypes used VARCHAR(200) for the encoded beat intervals.
+        # A 10–15 second Apple Watch sample may legitimately exceed that
+        # limit, which prevented the whole pendant event from being created.
+        # PostgreSQL supports this idempotent widening without touching the
+        # existing event rows. New databases receive TEXT from models.py.
+        pattern_column = next(
+            (
+                column for column in heartbeat_column_definitions
+                if column["name"] == "pattern"
+            ),
+            None,
+        )
+        pattern_length = (
+            getattr(pattern_column["type"], "length", None)
+            if pattern_column is not None
+            else None
+        )
+        if engine.dialect.name == "postgresql" and pattern_length is not None:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE heartbeat_events ALTER COLUMN pattern TYPE TEXT")
                 )

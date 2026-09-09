@@ -89,3 +89,14 @@ def migrate_schema(engine) -> None:
                 connection.execute(
                     text("ALTER TABLE heartbeat_events ALTER COLUMN pattern TYPE TEXT")
                 )
+
+    inspector = inspect(engine)
+    if "responses" in inspector.get_table_names():
+        response_columns = {
+            column["name"] for column in inspector.get_columns("responses")
+        }
+        if "voice_id" not in response_columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE responses ADD COLUMN voice_id VARCHAR(36)")
+                )

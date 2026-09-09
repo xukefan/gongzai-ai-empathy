@@ -14,6 +14,7 @@
 
 #define HTTP_TIMEOUT_MS 5000U
 #define HTTP_POLL_MS    2500U
+#define MULTIPART_BOUNDARY "----gongzaiT5AIReply"
 
 static THREAD_HANDLE sg_http_thread = NULL;
 static MUTEX_HANDLE sg_bridge_mutex = NULL;
@@ -381,4 +382,80 @@ void pendant_http_bridge_respond(const char *event_id, const char *response_type
                    GONGZAI_PENDANT_DEVICE_ID, event_id,
                    response_type != NULL ? response_type : "touch");
     (void)http_request_json("POST", "/api/pendant/responses", body, NULL);
+}
+
+bool pendant_http_bridge_upload_voice_reply(
+    const char *event_id,
+    const uint8_t *wav_data,
+    uint32_t wav_size,
+    uint32_t duration_ms
+)
+{
+    char path[256];
+    char prefix[384];
+    static const char suffix[] = "\r\n--" MULTIPART_BOUNDARY "--\r\n";
+    http_client_response_t response = {0};
+    http_client_header_t headers[2];
+    char content_type[96];
+    uint8_t *body;
+    size_t prefix_size;
+    size_t body_size;
+    http_client_status_t result;
+    bool ok;
+
+    if (event_id == NULL || event_id[0] == '\0' || wav_data == NULL ||
+        wav_size <= 44U || !network_is_up()) {
+        return false;
+    }
+    (void)snprintf(
+        path, sizeof(path),
+        "/api/pendant/voice/upload?device_id=%s&event_id=%s&duration_ms=%u",
+        GONGZAI_PENDANT_DEVICE_ID, event_id, (unsigned int)duration_ms
+    );
+    (void)snprintf(
+        prefix, sizeof(prefix),
+        "--%s\r\n"
+        "Content-Disposition: form-data; name=\"file\"; filename=\"reply.wav\"\r\n"
+        "Content-Type: audio/wav\r\n\r\n",
+        MULTIPART_BOUNDARY
+    );
+    (void)snprintf(content_type, sizeof(content_type),
+                   "multipart/form-data; boundary=%s", MULTIPART_BOUNDARY);
+    prefix_size = strlen(prefix);
+    body_size = prefix_size + (size_t)wav_size + sizeof(suffix) - 1U;
+    body = tal_psram_malloc(body_size);
+    if (body == NULL) {
+        PR_ERR("Unable to allocate reply upload body: %u bytes", (unsigned int)body_size);
+        return false;
+    }
+    memcpy(body, prefix, prefix_size);
+    memcpy(body + prefix_size, wav_data, wav_size);
+    memcpy(body + prefix_size + wav_size, suffix, sizeof(suffix) - 1U);
+
+    headers[0] = (http_client_header_t){.key = "Content-Type", .value = content_type};
+    headers[1] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
+    result = http_client_request(
+        &(const http_client_request_t){
+            .host = GONGZAI_API_HOST,
+            .port = GONGZAI_API_PORT,
+            .method = "POST",
+            .path = path,
+            .headers = headers,
+            .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
+            .body = body,
+            .body_length = body_size,
+            .timeout_ms = HTTP_TIMEOUT_MS,
+        },
+        &response
+    );
+    ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
+    if (ok) {
+        PR_NOTICE("Pendant voice reply uploaded: event=%s bytes=%u", event_id, wav_size);
+    } else {
+        PR_ERR("Pendant voice reply upload failed: event=%s client=%d status=%u",
+               event_id, result, response.status_code);
+    }
+    http_client_free(&response);
+    tal_psram_free(body);
+    return ok;
 }

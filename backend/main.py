@@ -352,6 +352,98 @@ def create_pendant_response(
     return {"status": "ok", "event_id": req.event_id, "response_type": req.response_type}
 
 
+@app.post("/api/pendant/voice/upload")
+async def upload_pendant_voice_reply(
+    device_id: str,
+    event_id: str,
+    duration_ms: int,
+    file: UploadFile = File(...),
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Accept a reply recorded by a bound T5AI pendant.
+
+    The pendant authenticates with its device token; it never receives an end
+    user's bearer token.  The event determines the only account that may own
+    this reply: the receiver of the original shared moment.
+    """
+    _verify_pendant_token(x_pendant_token)
+    if duration_ms <= 0 or duration_ms > 15_000:
+        raise HTTPException(status_code=422, detail="duration_ms must be between 1 and 15000")
+
+    device = _device_or_404(device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.event_id == event_id,
+        HeartbeatEvent.receiver_id == device.user_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="event not found for this device")
+
+    suffix = Path(file.filename or "reply.wav").suffix.lower()
+    if suffix != ".wav":
+        raise HTTPException(status_code=415, detail="pendant replies must be WAV files")
+    content = await file.read(Config.MAX_VOICE_UPLOAD_BYTES + 1)
+    if len(content) <= 44:
+        raise HTTPException(status_code=422, detail="reply WAV is empty")
+    if len(content) > Config.MAX_VOICE_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="voice file is too large")
+
+    VOICE_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    stored_filename = f"{uuid.uuid4()}.wav"
+    file_path = VOICE_STORAGE_ROOT / stored_filename
+    file_path.write_bytes(content)
+
+    voice = VoiceRecord(
+        user_id=device.user_id,
+        file_url=stored_filename,
+        duration=max(1, duration_ms // 1000),
+    )
+    db.add(voice)
+    db.commit()
+
+    pendant_filename = f"{uuid.uuid4()}.mp3"
+    pendant_path = PENDANT_AUDIO_ROOT / pendant_filename
+    pendant_ready, pendant_error = await run_in_threadpool(
+        _transcode_for_pendant, file_path, pendant_path
+    )
+    if pendant_ready:
+        from datetime import datetime
+        voice.pendant_file_url = pendant_filename
+        voice.pendant_audio_status = "ready"
+        voice.pendant_audio_ready_at = datetime.utcnow()
+    else:
+        voice.pendant_audio_status = "unavailable"
+        voice.pendant_audio_error = pendant_error
+        if pendant_path.is_file():
+            pendant_path.unlink()
+
+    transcription = await run_in_threadpool(
+        transcribe_event, file_path, voice.id, "pendant", True, "zh-CN"
+    )
+    voice.transcript = transcription.get("transcript")
+    voice.transcription_status = transcription.get("status", "failed")
+    voice.transcription_error = transcription.get("error_message")
+    voice.transcription_provider = transcription.get("provider")
+    voice.transcription_request_id = transcription.get("request_id")
+
+    response = Response(
+        event_id=event.event_id,
+        from_user=device.user_id,
+        response_type="voice",
+        voice_id=voice.id,
+    )
+    db.add(response)
+    event.status = "replied"
+    db.commit()
+    return {
+        "status": "uploaded",
+        "event_id": event.event_id,
+        "voice_id": voice.id,
+        "transcription_status": voice.transcription_status,
+        "transcript": voice.transcript,
+    }
+
+
 @app.get("/api/pendant/voice/{voice_id}")
 def download_voice_for_pendant(
     voice_id: str,

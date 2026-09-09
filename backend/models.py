@@ -88,6 +88,10 @@ class Response(Base):
     event_id = Column(String(36), nullable=False)
     from_user = Column(String(36), nullable=False)
     response_type = Column(String(20), default="touch")
+    # A voice response is stored as a normal VoiceRecord, but keeps an
+    # explicit link to the incoming event so it can be shown in the shared
+    # timeline without guessing from timestamps.
+    voice_id = Column(String(36), ForeignKey("voice_records.id"))
     created_at = Column(DateTime, server_default=func.now())
 
 class DoNotDisturbSetting(Base):

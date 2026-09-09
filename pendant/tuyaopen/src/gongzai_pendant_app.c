@@ -449,12 +449,12 @@ static bool pendant_upload_recording(
         pendant_recorder_peak_amplitude()
     );
 
-    /*
-     * The foundation milestone stops at a verified upload-ready memory asset.
-     * Member 2 will provide the authenticated HTTP endpoint in the next
-     * integration milestone. Never print or persist the private voice bytes.
-     */
-    return true;
+    return pendant_http_bridge_upload_voice_reply(
+        event_id,
+        wav_data,
+        wav_size,
+        pendant_recorder_duration_ms()
+    );
 }
 
 static void pendant_report_state(
@@ -577,6 +577,8 @@ static void reply_button_event_cb(lv_event_t *event)
         (void)pendant_controller_on_record_button_pressed(&sg_controller);
     } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
         if (pendant_controller_on_record_button_released(&sg_controller)) {
+            /* upload_recording only returns true after the FastAPI endpoint
+             * accepts the WAV, so this state is no longer a local fake. */
             pendant_controller_on_upload_finished(&sg_controller, true);
         }
     } else {

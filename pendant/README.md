@@ -49,7 +49,7 @@ ctest --test-dir pendant/build --output-on-failure
 | `play_audio` | 已接入板载扬声器、内存 MP3 和服务器签名 MP3 URL |
 | `start_recording` | 已接入板载麦克风 PCM 采集，按住才启用 |
 | `stop_recording` | 已在 PSRAM 封装 16 kHz/16-bit/单声道 WAV |
-| `upload_recording` | 已暴露内存 WAV 的地址和长度；HTTPS 与服务器鉴权待接入 |
+| `upload_recording` | 已通过挂件令牌上传内存 WAV；服务端保存、转写并关联到原事件 |
 | `report_state` | 当前写串口日志；涂鸦 DP 上报待接入 |
 | `now_ms` | 已接入 `tal_system_get_millisecond()` |
 
@@ -98,7 +98,7 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 
 `CMakeLists.txt` 会复用当前 TuyaOpen SDK 自带的 `hello_tuya_16k.c` 作为扬声器测试原声，不把第三方二进制和构建产物提交进仓库。
 
-阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放和麦克风录音封装。
+阶段一已完成 LED、屏幕、触摸、按钮、本地音频播放、麦克风录音及服务器回复上传。
 
 ## FastAPI 直连（当前主链路）
 
@@ -109,6 +109,9 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 - 将事件送入 LED 心跳状态机；
 - 心跳事件在挂件接受后回传 `played`；带原声事件通过短期签名 MP3 URL 播放，并在播放器结束后回传 `played`；
 - 用户触摸后回传 `touch`；
+- 用户按住“回复”时，T5AI 只在按住期间采集 PCM；松开后将内存 WAV 以
+  `device_id + event_id + X-Pendant-Token` 上传至
+  `/api/pendant/voice/upload`，服务端再完成保存与 ASR；
 - 获取事件后服务端保持事件为 `created`，直到挂件确认；网络或播放失败时挂件释放本地占用，服务端会重试，避免静默丢失片段。
 
 服务器地址、设备 ID 和访问令牌通过本地 `tuya_config_secrets.h` 覆盖，示例：
@@ -120,7 +123,7 @@ tos.py monitor -p /dev/cu.usbmodemYYYYYYYYYYYY
 #define GONGZAI_PENDANT_API_TOKEN "replace-locally"
 ```
 
-真实令牌不能提交到 GitHub。当前服务器仍为 HTTP，适合临时联调，不适合承载正式用户原声；上线前必须配置域名和 HTTPS。
+真实令牌不能提交到 GitHub。当前服务器仍为 HTTP，适合临时联调，不适合承载正式用户原声；上线前必须配置域名和 HTTPS。回复上传目前在松开按钮后同步等待服务器确认，最长受 5 秒网络超时限制；产品化时应改为后台上传队列和断网重试。
 
 ## Tuya 云端桥接（可选兼容层）
 

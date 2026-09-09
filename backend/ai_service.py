@@ -7,12 +7,16 @@ fallback entry so the rest of the product can still be tested end to end.
 """
 
 import json
+import logging
 import re
+import time
 from typing import Optional
 
 import requests
 
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class AIServiceError(RuntimeError):
@@ -107,17 +111,39 @@ def generate_diary(content: str, bpm: Optional[int] = None) -> dict:
         "Content-Type": "application/json",
     }
 
-    try:
-        response = requests.post(
-            endpoint,
-            headers=headers,
-            json=payload,
-            timeout=Config.AI_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        body = response.json()
-        text = body["choices"][0]["message"]["content"]
-    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
-        raise AIServiceError(f"AI服务调用失败: {exc}") from exc
+    last_error: Exception | None = None
+    for attempt in range(1, Config.AI_MAX_ATTEMPTS + 1):
+        try:
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json=payload,
+                timeout=Config.AI_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            body = response.json()
+            text = body["choices"][0]["message"]["content"]
+            return _extract_json(text)
+        except (
+            requests.RequestException,
+            KeyError,
+            IndexError,
+            TypeError,
+            ValueError,
+            AIServiceError,
+        ) as exc:
+            last_error = exc
+            logger.warning(
+                "Diary generation attempt %d/%d failed: %s",
+                attempt,
+                Config.AI_MAX_ATTEMPTS,
+                exc,
+            )
+            if attempt < Config.AI_MAX_ATTEMPTS:
+                time.sleep(Config.AI_RETRY_DELAY_SECONDS * attempt)
 
-    return _extract_json(text)
+    # The user's approved words remain more important than an AI summary.
+    # Preserve them as a deterministic diary entry rather than surfacing a
+    # dead-end 502 after the voice and pendant steps have already succeeded.
+    logger.warning("Diary generation fell back after retries: %s", last_error)
+    return _fallback_entry(normalized, bpm)

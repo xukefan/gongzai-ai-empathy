@@ -54,7 +54,7 @@ final class HeartbeatProcessingTests: XCTestCase {
         XCTAssertEqual(packet.schemaVersion, 1)
     }
 
-    func testMapsPacketToExistingBackendContract() {
+    func testMapsPacketToExistingBackendContract() throws {
         let packet = HeartbeatPacket(
             senderID: "user-a",
             receiverID: "user-b",

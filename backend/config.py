@@ -58,6 +58,13 @@ class Config:
     # An empty value lets the service fall back to its bundled prompt version.
     AI_PROMPT_VERSION = os.getenv("AI_PROMPT_VERSION", "")
     AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 30))
+    # A short retry is enough for transient upstream 5xx/timeout failures.
+    # The diary endpoint falls back to the approved original text if all
+    # attempts fail, so an AI outage never blocks the user's record.
+    AI_MAX_ATTEMPTS = max(1, min(int(os.getenv("AI_MAX_ATTEMPTS", "3")), 3))
+    AI_RETRY_DELAY_SECONDS = max(
+        0.0, min(float(os.getenv("AI_RETRY_DELAY_SECONDS", "0.8")), 5.0)
+    )
     CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 
     HOST = os.getenv("HOST", "0.0.0.0")

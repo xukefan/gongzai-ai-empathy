@@ -452,7 +452,7 @@ struct ContentView: View {
             moments.removeAll { $0.id == moment.id }
             moments.insert(moment, at: 0)
             let diaryMessage = moment.aiStatus == "fallback"
-                ? "日记已保存（等待服务器配置 AI）"
+                ? "AI 暂时不可用，已按原文保存日记"
                 : "AI 日记已生成并保存"
             statusText = "\(deliveryMessage)；\(diaryMessage)"
         } catch {
@@ -479,7 +479,7 @@ struct ContentView: View {
             moments.insert(moment, at: 0)
             diaryContent = ""
             statusText = moment.aiStatus == "fallback"
-                ? "日记已保存（等待服务器配置 AI）"
+                ? "AI 暂时不可用，已按原文保存日记"
                 : "AI 日记已生成并保存"
         } catch {
             statusText = "AI 日记生成失败：\(error.localizedDescription)"

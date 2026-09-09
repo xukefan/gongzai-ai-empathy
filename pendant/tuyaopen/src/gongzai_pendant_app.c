@@ -59,6 +59,11 @@ static uint8_t sg_last_led_level = 0U;
 static bool sg_physical_led_on = false;
 static bool sg_audio_ready = false;
 static uint32_t sg_last_reply_size = 0U;
+/* Keep a human-readable diagnosis on the device.  Recording failures used to
+ * collapse into the unhelpful generic \"发生错误\", which made it impossible to
+ * distinguish an inactive moment, microphone capture failure, and HTTP error
+ * without opening a serial console. */
+static char sg_reply_error[96] = {0};
 /*
  * URL playback is asynchronous in Tuya's native player.  Keep the direct
  * FastAPI event ID here until the player has actually entered PLAYING and
@@ -391,12 +396,19 @@ static bool pendant_start_recording(const char *event_id)
     OPERATE_RET rt;
 
     if (!sg_audio_ready || event_id == NULL) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "麦克风尚未就绪，请稍后再试");
         return false;
     }
 
+    sg_reply_error[0] = '\0';
     TUYA_CALL_ERR_LOG(tuya_ai_playlist_stop(sg_playlist));
-    TUYA_CALL_ERR_LOG(tdl_audio_play_stop(sg_audio_handle));
+    /* Do not stop the TDL audio device here.  On T5AI this same device also
+     * supplies microphone frames; stopping its playback channel while starting
+     * a capture can prevent the first recording from receiving PCM data. */
     if (!pendant_recorder_start()) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "麦克风未能开始录音，请重试");
         PR_ERR("Unable to start reply recording for event: %s", event_id);
         return false;
     }
@@ -408,10 +420,14 @@ static bool pendant_start_recording(const char *event_id)
 static bool pendant_stop_recording(char *path, size_t capacity)
 {
     if (path == NULL || capacity <= strlen(PENDANT_RECORDER_WAV_URI)) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "录音文件路径无效");
         return false;
     }
 
     if (!pendant_recorder_stop()) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "未录到声音，请按住至少 1 秒后松开");
         return false;
     }
 
@@ -437,6 +453,8 @@ static bool pendant_upload_recording(
     if (event_id == NULL || recording_path == NULL ||
         strcmp(recording_path, PENDANT_RECORDER_WAV_URI) != 0 ||
         wav_data == NULL || wav_size <= 44U) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "录音数据无效，请重新录制");
         PR_ERR("Reply WAV asset is unavailable for upload");
         return false;
     }
@@ -449,12 +467,19 @@ static bool pendant_upload_recording(
         pendant_recorder_peak_amplitude()
     );
 
-    return pendant_http_bridge_upload_voice_reply(
+    if (!pendant_http_bridge_upload_voice_reply(
         event_id,
         wav_data,
         wav_size,
         pendant_recorder_duration_ms()
-    );
+    )) {
+        (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                       "上传未成功，请检查网络后重试");
+        return false;
+    }
+
+    sg_reply_error[0] = '\0';
+    return true;
 }
 
 static void pendant_report_state(
@@ -488,6 +513,9 @@ static void update_ui_from_controller(void)
             lv_label_set_text(sg_event_label, "正在上传回复…");
         } else if (sg_controller.state == PENDANT_STATE_REPLIED) {
             lv_label_set_text(sg_event_label, "回复已上传并保存");
+        } else if (sg_controller.state == PENDANT_STATE_ERROR &&
+                   sg_reply_error[0] != '\0') {
+            lv_label_set_text(sg_event_label, sg_reply_error);
         } else if (sg_controller.state == PENDANT_STATE_ERROR && sg_last_reply_size > 0U) {
             lv_label_set_text(sg_event_label, "回复上传失败，请重试");
         } else if (sg_last_reply_size > 0U) {
@@ -580,7 +608,14 @@ static void reply_button_event_cb(lv_event_t *event)
     lv_event_code_t code = lv_event_get_code(event);
 
     if (code == LV_EVENT_PRESSED) {
-        (void)pendant_controller_on_record_button_pressed(&sg_controller);
+        if (!sg_controller.has_active_event) {
+            (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                           "请先在手机端发送一个新的片段");
+        } else if (!pendant_controller_on_record_button_pressed(&sg_controller) &&
+                   sg_reply_error[0] == '\0') {
+            (void)snprintf(sg_reply_error, sizeof(sg_reply_error),
+                           "无法开始录音，请重试");
+        }
     } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
         if (pendant_controller_on_record_button_released(&sg_controller)) {
             /* upload_recording only returns true after the FastAPI endpoint

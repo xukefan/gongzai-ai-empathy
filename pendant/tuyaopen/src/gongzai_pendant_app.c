@@ -484,10 +484,16 @@ static void update_ui_from_controller(void)
     }
 
     if (sg_event_label != NULL) {
-        if (sg_last_reply_size > 0U) {
+        if (sg_controller.state == PENDANT_STATE_UPLOADING) {
+            lv_label_set_text(sg_event_label, "正在上传回复…");
+        } else if (sg_controller.state == PENDANT_STATE_REPLIED) {
+            lv_label_set_text(sg_event_label, "回复已上传并保存");
+        } else if (sg_controller.state == PENDANT_STATE_ERROR && sg_last_reply_size > 0U) {
+            lv_label_set_text(sg_event_label, "回复上传失败，请重试");
+        } else if (sg_last_reply_size > 0U) {
             lv_label_set_text_fmt(
                 sg_event_label,
-                "回复已录制\n等待上传接入"
+                "回复已录制\n准备上传"
             );
         } else {
             lv_label_set_text_fmt(

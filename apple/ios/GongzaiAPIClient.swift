@@ -224,7 +224,8 @@ struct GongzaiAPIClient {
     func sendHeartbeat(
         packet: HeartbeatPacket,
         senderID: String? = nil,
-        receiverID: String? = nil
+        receiverID: String? = nil,
+        voiceID: String? = nil
     ) async throws -> BackendHeartbeatSendResponse {
         var request = URLRequest(
             url: baseURL.appendingPathComponent("api/heartbeat/send")
@@ -235,7 +236,8 @@ struct GongzaiAPIClient {
             BackendHeartbeatSendRequest(
                 packet: packet,
                 senderID: senderID,
-                receiverID: receiverID
+                receiverID: receiverID,
+                voiceID: voiceID
             )
         )
         request = authorized(request)

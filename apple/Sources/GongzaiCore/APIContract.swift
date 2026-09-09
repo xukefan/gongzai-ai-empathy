@@ -7,16 +7,19 @@ public struct BackendHeartbeatSendRequest: Codable, Equatable, Sendable {
     public let receiverID: String
     public let bpm: Int
     public let pattern: String?
+    public let voiceID: String?
 
     public init(
         packet: HeartbeatPacket,
         senderID overrideSenderID: String? = nil,
-        receiverID overrideReceiverID: String? = nil
+        receiverID overrideReceiverID: String? = nil,
+        voiceID: String? = nil
     ) {
         senderID = overrideSenderID ?? packet.senderID
         receiverID = overrideReceiverID ?? packet.receiverID
         bpm = Int(packet.averageBPM.rounded())
         pattern = packet.beatIntervalsMS.map(String.init).joined(separator: ",")
+        self.voiceID = voiceID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -24,6 +27,7 @@ public struct BackendHeartbeatSendRequest: Codable, Equatable, Sendable {
         case receiverID = "receiver_id"
         case bpm
         case pattern
+        case voiceID = "voice_id"
     }
 }
 

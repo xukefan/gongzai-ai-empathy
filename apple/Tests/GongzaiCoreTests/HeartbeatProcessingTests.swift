@@ -67,6 +67,20 @@ final class HeartbeatProcessingTests: XCTestCase {
         let request = BackendHeartbeatSendRequest(packet: packet)
         XCTAssertEqual(request.bpm, 82)
         XCTAssertEqual(request.pattern, "728,735")
+        XCTAssertNil(request.voiceID)
+
+        let voiceRequest = BackendHeartbeatSendRequest(
+            packet: packet,
+            voiceID: "voice-1"
+        )
+        XCTAssertEqual(voiceRequest.voiceID, "voice-1")
+
+        let encoded = try GongzaiCoding.encoder().encode(voiceRequest)
+        let decoded = try GongzaiCoding.decoder().decode(
+            BackendHeartbeatSendRequest.self,
+            from: encoded
+        )
+        XCTAssertEqual(decoded.voiceID, "voice-1")
     }
 
     func testDecodesHardenedBackendResponses() throws {

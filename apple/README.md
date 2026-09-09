@@ -6,7 +6,7 @@
 2. Watch 将心率片段和原声文件传给配对的 iPhone；
 3. iPhone 通过临时适配层调用当前后端接口；
 4. 接收端 Watch 按 BPM 使用系统触觉重现心跳节奏。
-5. iPhone 将用户确认的发送内容交给服务端 AI，生成并保存一条日记。
+5. iPhone 将原声上传、转写并交给服务端 AI，生成并保存一条日记；上传成功后会自动把 `voice_id` 关联到最近一次心跳事件，排入接收端挂件播放队列。
 
 手表负责震动；挂件不包含振动马达，只用 LED 呈现心跳频率并播放原声。
 
@@ -115,7 +115,8 @@ NSMicrophoneUsageDescription:
 - Watch 端触觉只能近似重现节奏，不能控制为任意马达波形；
 - WatchConnectivity 只连接同一用户配对的 Watch 与 iPhone，异地传输必须经过服务器；
 - 原声在 iPhone 中落盘后再上传，服务端负责 ASR；设备端不做本地转写；
-- 当前后端使用 `bpm` 与逗号分隔的 `pattern`，Apple 端内部仍保留规范字段，映射集中在 `BackendHeartbeatSendRequest`；
+- 当前后端使用 `bpm`、逗号分隔的 `pattern` 和可选 `voice_id`，Apple 端内部仍保留规范字段，映射集中在 `BackendHeartbeatSendRequest`；
+- “上传这段原声”会先保存语音并生成日记，再自动调用心跳发送接口；因此必须先有一段心率，且设备页已填写伴侣用户 ID（或心率包中已有正确接收方 ID），挂件才会收到原声事件；
 - 当前语音上传接口未返回服务端测得的时长，因此 UI 暂以 10 秒占位，后续应由录音元数据提供准确时长。
 
 ## 本地验证

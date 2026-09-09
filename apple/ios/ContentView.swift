@@ -214,6 +214,15 @@ struct ContentView: View {
                             Task { await uploadLatestVoice() }
                         }
                         .disabled(isWorking)
+                        if connectivity.latestHeartbeat != nil {
+                            Text("上传后会自动关联最近一次心率，并发送给伴侣挂件。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("请先在 Apple Watch 采集一段心率，原声才能和心跳一起发送。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 }
@@ -392,12 +401,41 @@ struct ContentView: View {
                 userID: currentUserID,
                 durationMS: 10_000
             )
+
+            // Uploading a voice file creates a VoiceRecord, but the pendant
+            // polls HeartbeatEvent records. Link the uploaded voice to the
+            // latest user-approved heartbeat before generating the diary so
+            // the remote pendant can receive and play the original audio.
+            var deliveryMessage = "原声已保存"
+            if let packet = connectivity.latestHeartbeat {
+                let configuredReceiverID = partnerUserID
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let receiverID = configuredReceiverID.isEmpty
+                    ? packet.receiverID
+                    : configuredReceiverID
+                do {
+                    let response = try await client.sendHeartbeat(
+                        packet: packet,
+                        senderID: currentUserID,
+                        receiverID: receiverID,
+                        voiceID: upload.voiceID
+                    )
+                    deliveryMessage = response.status == "ok"
+                        ? "原声和心跳已发送到伴侣挂件"
+                        : (response.message ?? "原声已保存，但挂件事件未创建")
+                } catch {
+                    deliveryMessage = "原声已保存，但发送到挂件失败：\(error.localizedDescription)"
+                }
+            } else {
+                deliveryMessage = "原声已保存，但没有可关联的心率；请先采集心率后再分享"
+            }
+
             guard upload.transcriptionStatus == "completed",
                   let transcript = upload.transcript?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !transcript.isEmpty
             else {
                 let reason = upload.transcriptionError ?? "服务器尚未返回可用转写结果"
-                statusText = "原声已保存，但转写未完成：\(reason)"
+                statusText = "\(deliveryMessage)；转写未完成：\(reason)"
                 return
             }
 
@@ -413,9 +451,10 @@ struct ContentView: View {
             )
             moments.removeAll { $0.id == moment.id }
             moments.insert(moment, at: 0)
-            statusText = moment.aiStatus == "fallback"
-                ? "原声已转写，日记已保存（等待服务器配置 AI）"
-                : "原声已转写，AI 日记已生成并保存"
+            let diaryMessage = moment.aiStatus == "fallback"
+                ? "日记已保存（等待服务器配置 AI）"
+                : "AI 日记已生成并保存"
+            statusText = "\(deliveryMessage)；\(diaryMessage)"
         } catch {
             statusText = "原声处理失败：\(error.localizedDescription)"
         }

@@ -617,11 +617,7 @@ static void reply_button_event_cb(lv_event_t *event)
                            "无法开始录音，请重试");
         }
     } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
-        if (pendant_controller_on_record_button_released(&sg_controller)) {
-            /* upload_recording only returns true after the FastAPI endpoint
-             * accepts the WAV, so this state is no longer a local fake. */
-            pendant_controller_on_upload_finished(&sg_controller, true);
-        }
+        (void)pendant_controller_on_record_button_released(&sg_controller);
     } else {
         return;
     }
@@ -960,9 +956,7 @@ static void process_pending_physical_button(void)
         (void)pendant_controller_on_record_button_pressed(&sg_controller);
         break;
     case PENDING_BUTTON_RECORD_STOP:
-        if (pendant_controller_on_record_button_released(&sg_controller)) {
-            pendant_controller_on_upload_finished(&sg_controller, true);
-        }
+        (void)pendant_controller_on_record_button_released(&sg_controller);
         break;
     case PENDING_BUTTON_NONE:
     default:
@@ -1018,6 +1012,12 @@ static void pendant_tick_cb(lv_timer_t *timer)
         }
     }
     pendant_controller_tick(&sg_controller);
+    {
+        bool voice_upload_succeeded;
+        if (pendant_http_bridge_take_voice_upload_result(&voice_upload_succeeded)) {
+            pendant_controller_on_upload_finished(&sg_controller, voice_upload_succeeded);
+        }
+    }
     check_url_audio_playback();
 
     now_ms = pendant_now_ms();

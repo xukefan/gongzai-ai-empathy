@@ -25,6 +25,17 @@ static pendant_http_moment_t sg_moment;
 static char sg_active_event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
 static char sg_ack_event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
 static char sg_ack_status[16] = {0};
+/* Network I/O must stay on the bridge worker.  In particular, doing a POST
+ * with a multi-kilobyte WAV inside an LVGL input callback is unreliable on
+ * T5AI and can fail before a TCP request reaches FastAPI. */
+static bool sg_voice_upload_pending = false;
+static bool sg_voice_upload_running = false;
+static bool sg_voice_upload_result_ready = false;
+static bool sg_voice_upload_succeeded = false;
+static char sg_voice_upload_event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
+static const uint8_t *sg_voice_upload_data = NULL;
+static uint32_t sg_voice_upload_size = 0U;
+static uint32_t sg_voice_upload_duration_ms = 0U;
 
 static void copy_text(char *destination, size_t capacity, const char *source)
 {
@@ -304,11 +315,117 @@ static void post_queued_ack(void)
     PR_NOTICE("Pendant playback ACK delivered: %s", event_id);
 }
 
+static bool upload_voice_reply_now(
+    const char *event_id,
+    const uint8_t *wav_data,
+    uint32_t wav_size,
+    uint32_t duration_ms
+)
+{
+    char path[256];
+    char prefix[384];
+    static const char suffix[] = "\r\n--" MULTIPART_BOUNDARY "--\r\n";
+    http_client_response_t response = {0};
+    http_client_header_t headers[2];
+    char content_type[96];
+    uint8_t *body;
+    size_t prefix_size;
+    size_t body_size;
+    http_client_status_t result;
+    bool ok;
+
+    if (event_id == NULL || event_id[0] == '\0' || wav_data == NULL ||
+        wav_size <= 44U || !network_is_up()) {
+        return false;
+    }
+    (void)snprintf(
+        path, sizeof(path),
+        "/api/pendant/voice/upload?device_id=%s&event_id=%s&duration_ms=%u",
+        GONGZAI_PENDANT_DEVICE_ID, event_id, (unsigned int)duration_ms
+    );
+    (void)snprintf(
+        prefix, sizeof(prefix),
+        "--%s\r\n"
+        "Content-Disposition: form-data; name=\"file\"; filename=\"reply.wav\"\r\n"
+        "Content-Type: audio/wav\r\n\r\n",
+        MULTIPART_BOUNDARY
+    );
+    (void)snprintf(content_type, sizeof(content_type),
+                   "multipart/form-data; boundary=%s", MULTIPART_BOUNDARY);
+    prefix_size = strlen(prefix);
+    body_size = prefix_size + (size_t)wav_size + sizeof(suffix) - 1U;
+    body = tal_psram_malloc(body_size);
+    if (body == NULL) {
+        PR_ERR("Unable to allocate reply upload body: %u bytes", (unsigned int)body_size);
+        return false;
+    }
+    memcpy(body, prefix, prefix_size);
+    memcpy(body + prefix_size, wav_data, wav_size);
+    memcpy(body + prefix_size + wav_size, suffix, sizeof(suffix) - 1U);
+
+    headers[0] = (http_client_header_t){.key = "Content-Type", .value = content_type};
+    headers[1] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
+    result = http_client_request(
+        &(const http_client_request_t){
+            .host = GONGZAI_API_HOST, .port = GONGZAI_API_PORT,
+            .method = "POST", .path = path, .headers = headers,
+            .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
+            .body = body, .body_length = body_size,
+            .timeout_ms = HTTP_TIMEOUT_MS,
+        }, &response
+    );
+    ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
+    if (ok) {
+        PR_NOTICE("Pendant voice reply uploaded: event=%s bytes=%u", event_id, wav_size);
+    } else {
+        PR_ERR("Pendant voice reply upload failed: event=%s client=%d status=%u",
+               event_id, result, response.status_code);
+    }
+    http_client_free(&response);
+    tal_psram_free(body);
+    return ok;
+}
+
+static void post_queued_voice_upload(void)
+{
+    char event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
+    const uint8_t *wav_data = NULL;
+    uint32_t wav_size = 0U;
+    uint32_t duration_ms = 0U;
+    bool succeeded;
+
+    if (!bridge_lock()) return;
+    if (!sg_voice_upload_pending || sg_voice_upload_running) {
+        bridge_unlock();
+        return;
+    }
+    copy_text(event_id, sizeof(event_id), sg_voice_upload_event_id);
+    wav_data = sg_voice_upload_data;
+    wav_size = sg_voice_upload_size;
+    duration_ms = sg_voice_upload_duration_ms;
+    sg_voice_upload_pending = false;
+    sg_voice_upload_running = true;
+    bridge_unlock();
+
+    succeeded = upload_voice_reply_now(event_id, wav_data, wav_size, duration_ms);
+
+    if (bridge_lock()) {
+        sg_voice_upload_running = false;
+        sg_voice_upload_succeeded = succeeded;
+        sg_voice_upload_result_ready = true;
+        sg_voice_upload_data = NULL;
+        sg_voice_upload_size = 0U;
+        sg_voice_upload_duration_ms = 0U;
+        bridge_unlock();
+    }
+}
+
 static void http_worker(void *arg)
 {
     (void)arg;
     for (;;) {
         if (network_is_up()) {
+            post_queued_voice_upload();
             post_queued_ack();
             if (bridge_is_ready_to_poll()) {
                 poll_once();
@@ -391,71 +508,35 @@ bool pendant_http_bridge_upload_voice_reply(
     uint32_t duration_ms
 )
 {
-    char path[256];
-    char prefix[384];
-    static const char suffix[] = "\r\n--" MULTIPART_BOUNDARY "--\r\n";
-    http_client_response_t response = {0};
-    http_client_header_t headers[2];
-    char content_type[96];
-    uint8_t *body;
-    size_t prefix_size;
-    size_t body_size;
-    http_client_status_t result;
-    bool ok;
-
     if (event_id == NULL || event_id[0] == '\0' || wav_data == NULL ||
-        wav_size <= 44U || !network_is_up()) {
+        wav_size <= 44U || !network_is_up() || !bridge_lock()) {
         return false;
     }
-    (void)snprintf(
-        path, sizeof(path),
-        "/api/pendant/voice/upload?device_id=%s&event_id=%s&duration_ms=%u",
-        GONGZAI_PENDANT_DEVICE_ID, event_id, (unsigned int)duration_ms
-    );
-    (void)snprintf(
-        prefix, sizeof(prefix),
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"reply.wav\"\r\n"
-        "Content-Type: audio/wav\r\n\r\n",
-        MULTIPART_BOUNDARY
-    );
-    (void)snprintf(content_type, sizeof(content_type),
-                   "multipart/form-data; boundary=%s", MULTIPART_BOUNDARY);
-    prefix_size = strlen(prefix);
-    body_size = prefix_size + (size_t)wav_size + sizeof(suffix) - 1U;
-    body = tal_psram_malloc(body_size);
-    if (body == NULL) {
-        PR_ERR("Unable to allocate reply upload body: %u bytes", (unsigned int)body_size);
+    if (sg_voice_upload_pending || sg_voice_upload_running) {
+        bridge_unlock();
+        PR_WARN("Voice upload is already queued");
         return false;
     }
-    memcpy(body, prefix, prefix_size);
-    memcpy(body + prefix_size, wav_data, wav_size);
-    memcpy(body + prefix_size + wav_size, suffix, sizeof(suffix) - 1U);
+    copy_text(sg_voice_upload_event_id, sizeof(sg_voice_upload_event_id), event_id);
+    sg_voice_upload_data = wav_data;
+    sg_voice_upload_size = wav_size;
+    sg_voice_upload_duration_ms = duration_ms;
+    sg_voice_upload_pending = true;
+    sg_voice_upload_result_ready = false;
+    bridge_unlock();
+    PR_NOTICE("Pendant voice reply queued: event=%s bytes=%u", event_id, wav_size);
+    return true;
+}
 
-    headers[0] = (http_client_header_t){.key = "Content-Type", .value = content_type};
-    headers[1] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
-    result = http_client_request(
-        &(const http_client_request_t){
-            .host = GONGZAI_API_HOST,
-            .port = GONGZAI_API_PORT,
-            .method = "POST",
-            .path = path,
-            .headers = headers,
-            .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
-            .body = body,
-            .body_length = body_size,
-            .timeout_ms = HTTP_TIMEOUT_MS,
-        },
-        &response
-    );
-    ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
-    if (ok) {
-        PR_NOTICE("Pendant voice reply uploaded: event=%s bytes=%u", event_id, wav_size);
-    } else {
-        PR_ERR("Pendant voice reply upload failed: event=%s client=%d status=%u",
-               event_id, result, response.status_code);
+bool pendant_http_bridge_take_voice_upload_result(bool *succeeded)
+{
+    if (succeeded == NULL || !bridge_lock()) return false;
+    if (!sg_voice_upload_result_ready) {
+        bridge_unlock();
+        return false;
     }
-    http_client_free(&response);
-    tal_psram_free(body);
-    return ok;
+    *succeeded = sg_voice_upload_succeeded;
+    sg_voice_upload_result_ready = false;
+    bridge_unlock();
+    return true;
 }

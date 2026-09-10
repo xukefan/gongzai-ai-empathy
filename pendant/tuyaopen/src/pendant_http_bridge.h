@@ -22,13 +22,15 @@ void pendant_http_bridge_ack(const char *event_id, const char *status);
  * retry it after a transient speaker or URL-start failure. */
 void pendant_http_bridge_retry_event(const char *event_id);
 void pendant_http_bridge_respond(const char *event_id, const char *response_type);
-/* Upload an in-memory WAV reply using the pendant token.  Returns true only
- * after the server has persisted and associated it with the event. */
+/* Queue an in-memory WAV reply for the bridge worker.  This function is safe
+ * to call from LVGL/button callbacks and returns once the job is queued. */
 bool pendant_http_bridge_upload_voice_reply(
     const char *event_id,
     const uint8_t *wav_data,
     uint32_t wav_size,
     uint32_t duration_ms
 );
+/* Read a completed queued upload result.  The result is consumed once read. */
+bool pendant_http_bridge_take_voice_upload_result(bool *succeeded);
 
 #endif

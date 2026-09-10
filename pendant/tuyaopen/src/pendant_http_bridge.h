@@ -32,5 +32,12 @@ bool pendant_http_bridge_upload_voice_reply(
 );
 /* Read a completed queued upload result.  The result is consumed once read. */
 bool pendant_http_bridge_take_voice_upload_result(bool *succeeded);
+/* Diagnostics for the most recently completed voice upload.  `client_status`
+ * is the Tuya HTTP-client result; `http_status` is zero when no HTTP response
+ * was received. */
+void pendant_http_bridge_last_voice_upload_error(
+    int *client_status,
+    uint16_t *http_status
+);
 
 #endif

@@ -1015,6 +1015,21 @@ static void pendant_tick_cb(lv_timer_t *timer)
     {
         bool voice_upload_succeeded;
         if (pendant_http_bridge_take_voice_upload_result(&voice_upload_succeeded)) {
+            if (!voice_upload_succeeded) {
+                int client_status = 0;
+                uint16_t http_status = 0U;
+                pendant_http_bridge_last_voice_upload_error(
+                    &client_status,
+                    &http_status
+                );
+                (void)snprintf(
+                    sg_reply_error,
+                    sizeof(sg_reply_error),
+                    "上传失败 C%d H%u",
+                    client_status,
+                    (unsigned int)http_status
+                );
+            }
             pendant_controller_on_upload_finished(&sg_controller, voice_upload_succeeded);
         }
     }

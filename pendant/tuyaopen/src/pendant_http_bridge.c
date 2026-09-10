@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define HTTP_TIMEOUT_MS 5000U
+#define HTTP_TIMEOUT_MS 15000U
 #define HTTP_POLL_MS    2500U
 #define MULTIPART_BOUNDARY "----gongzaiT5AIReply"
 
@@ -36,6 +36,8 @@ static char sg_voice_upload_event_id[GONGZAI_HTTP_EVENT_ID_CAPACITY] = {0};
 static const uint8_t *sg_voice_upload_data = NULL;
 static uint32_t sg_voice_upload_size = 0U;
 static uint32_t sg_voice_upload_duration_ms = 0U;
+static int sg_last_voice_upload_client_status = 0;
+static uint16_t sg_last_voice_upload_http_status = 0U;
 
 static void copy_text(char *destination, size_t capacity, const char *source)
 {
@@ -375,6 +377,11 @@ static bool upload_voice_reply_now(
         }, &response
     );
     ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
+    if (bridge_lock()) {
+        sg_last_voice_upload_client_status = (int)result;
+        sg_last_voice_upload_http_status = response.status_code;
+        bridge_unlock();
+    }
     if (ok) {
         PR_NOTICE("Pendant voice reply uploaded: event=%s bytes=%u", event_id, wav_size);
     } else {
@@ -543,4 +550,15 @@ bool pendant_http_bridge_take_voice_upload_result(bool *succeeded)
     sg_voice_upload_result_ready = false;
     bridge_unlock();
     return true;
+}
+
+void pendant_http_bridge_last_voice_upload_error(
+    int *client_status,
+    uint16_t *http_status
+)
+{
+    if (client_status == NULL || http_status == NULL || !bridge_lock()) return;
+    *client_status = sg_last_voice_upload_client_status;
+    *http_status = sg_last_voice_upload_http_status;
+    bridge_unlock();
 }

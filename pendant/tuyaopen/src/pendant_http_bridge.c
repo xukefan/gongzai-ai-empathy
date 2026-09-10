@@ -508,8 +508,12 @@ bool pendant_http_bridge_upload_voice_reply(
     uint32_t duration_ms
 )
 {
+    /* This API is invoked by the UI task.  Do not ask netmgr for link state
+     * here: on T5AI the UI task may observe LINK_DOWN while the bridge worker
+     * is actively polling the server.  Queue first; the worker owns the real
+     * connectivity check and transmission. */
     if (event_id == NULL || event_id[0] == '\0' || wav_data == NULL ||
-        wav_size <= 44U || !network_is_up() || !bridge_lock()) {
+        wav_size <= 44U || !bridge_lock()) {
         return false;
     }
     if (sg_voice_upload_pending || sg_voice_upload_running) {

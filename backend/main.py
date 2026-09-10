@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header
+from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Request, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
@@ -13,7 +13,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from database import get_db, engine
+from database import get_db, engine, SessionLocal
 from models import Base, User, Relationship, Device, HeartbeatEvent, VoiceRecord, Moment, Response, DoNotDisturbSetting
 from schemas import *
 from tuya_client import TuyaClient
@@ -40,7 +40,10 @@ app.add_middleware(
 tuya = TuyaClient()
 VOICE_STORAGE_ROOT = (Path(__file__).resolve().parent / Config.VOICE_STORAGE_DIR).resolve()
 PENDANT_AUDIO_ROOT = (Path(__file__).resolve().parent / Config.PENDANT_AUDIO_DIR).resolve()
+PENDANT_UPLOAD_STAGING_ROOT = (VOICE_STORAGE_ROOT.parent / "pendant_staging").resolve()
 ALLOWED_VOICE_EXTENSIONS = {".m4a", ".wav", ".mp3", ".aac"}
+PENDANT_UPLOAD_CHUNK_BYTES = 1024
+PENDANT_UPLOAD_MAX_CHUNKS = 256
 
 
 def _transcode_for_pendant(source_path: Path, output_path: Path) -> tuple[bool, str | None]:
@@ -69,6 +72,62 @@ def _transcode_for_pendant(source_path: Path, output_path: Path) -> tuple[bool, 
     if completed.returncode != 0 or not output_path.is_file() or output_path.stat().st_size == 0:
         return False, "audio conversion failed"
     return True, None
+
+
+def _safe_pendant_upload_id(value: str) -> str:
+    """Accept only a compact opaque identifier; never let it become a path."""
+    if not value or len(value) > 80:
+        raise HTTPException(status_code=422, detail="invalid upload_id")
+    if not all(character.isascii() and (character.isalnum() or character in {"-", "_"}) for character in value):
+        raise HTTPException(status_code=422, detail="invalid upload_id")
+    return value
+
+
+def _process_pendant_voice_reply(voice_id: str, source_path_text: str) -> None:
+    """Run conversion/ASR after the pendant has already received its ACK."""
+    db = SessionLocal()
+    source_path = Path(source_path_text)
+    pendant_path: Path | None = None
+    try:
+        voice = db.query(VoiceRecord).filter(VoiceRecord.id == voice_id).first()
+        if voice is None or not source_path.is_file():
+            return
+
+        pendant_filename = f"{uuid.uuid4()}.mp3"
+        pendant_path = PENDANT_AUDIO_ROOT / pendant_filename
+        pendant_ready, pendant_error = _transcode_for_pendant(source_path, pendant_path)
+        if pendant_ready:
+            from datetime import datetime
+            voice.pendant_file_url = pendant_filename
+            voice.pendant_audio_status = "ready"
+            voice.pendant_audio_ready_at = datetime.utcnow()
+            voice.pendant_audio_error = None
+        else:
+            voice.pendant_audio_status = "unavailable"
+            voice.pendant_audio_error = pendant_error
+            if pendant_path.is_file():
+                pendant_path.unlink()
+
+        transcription = transcribe_event(source_path, voice.id, "pendant", True, "zh-CN")
+        voice.transcript = transcription.get("transcript")
+        voice.transcription_status = transcription.get("status", "failed")
+        voice.transcription_error = transcription.get("error_message")
+        voice.transcription_provider = transcription.get("provider")
+        voice.transcription_request_id = transcription.get("request_id")
+        db.commit()
+    except Exception as error:
+        # A voice reply is already safely retained.  Do not let background
+        # enrichment erase it just because ASR or ffmpeg has a transient fault.
+        try:
+            voice = db.query(VoiceRecord).filter(VoiceRecord.id == voice_id).first()
+            if voice is not None:
+                voice.transcription_status = "failed"
+                voice.transcription_error = str(error)[:500]
+                db.commit()
+        except Exception:
+            db.rollback()
+    finally:
+        db.close()
 
 
 def _playback_ticket_payload(device_id: str, event_id: str, voice_id: str, expires_at: int) -> str:
@@ -359,6 +418,7 @@ async def upload_pendant_voice_reply(
     duration_ms: int,
     file: UploadFile = File(...),
     x_pendant_token: str | None = Header(default=None),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
 ):
     """Accept a reply recorded by a bound T5AI pendant.
@@ -401,31 +461,6 @@ async def upload_pendant_voice_reply(
     db.add(voice)
     db.commit()
 
-    pendant_filename = f"{uuid.uuid4()}.mp3"
-    pendant_path = PENDANT_AUDIO_ROOT / pendant_filename
-    pendant_ready, pendant_error = await run_in_threadpool(
-        _transcode_for_pendant, file_path, pendant_path
-    )
-    if pendant_ready:
-        from datetime import datetime
-        voice.pendant_file_url = pendant_filename
-        voice.pendant_audio_status = "ready"
-        voice.pendant_audio_ready_at = datetime.utcnow()
-    else:
-        voice.pendant_audio_status = "unavailable"
-        voice.pendant_audio_error = pendant_error
-        if pendant_path.is_file():
-            pendant_path.unlink()
-
-    transcription = await run_in_threadpool(
-        transcribe_event, file_path, voice.id, "pendant", True, "zh-CN"
-    )
-    voice.transcript = transcription.get("transcript")
-    voice.transcription_status = transcription.get("status", "failed")
-    voice.transcription_error = transcription.get("error_message")
-    voice.transcription_provider = transcription.get("provider")
-    voice.transcription_request_id = transcription.get("request_id")
-
     response = Response(
         event_id=event.event_id,
         from_user=device.user_id,
@@ -435,12 +470,109 @@ async def upload_pendant_voice_reply(
     db.add(response)
     event.status = "replied"
     db.commit()
+    if background_tasks is not None:
+        background_tasks.add_task(_process_pendant_voice_reply, voice.id, str(file_path))
     return {
-        "status": "uploaded",
+        "status": "accepted",
         "event_id": event.event_id,
         "voice_id": voice.id,
-        "transcription_status": voice.transcription_status,
-        "transcript": voice.transcript,
+        "transcription_status": "pending",
+    }
+
+
+@app.post("/api/pendant/voice/chunk", status_code=202)
+async def upload_pendant_voice_chunk(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    device_id: str,
+    event_id: str,
+    upload_id: str,
+    chunk_index: int,
+    total_chunks: int,
+    duration_ms: int,
+    x_pendant_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Receive a reply WAV as small raw chunks from a constrained T5AI board.
+
+    Every request is intentionally tiny and gets a fast 202 response.  Only
+    the final chunk writes the immutable voice record; audio conversion and
+    ASR happen after the HTTP response in a background task.
+    """
+    _verify_pendant_token(x_pendant_token)
+    upload_id = _safe_pendant_upload_id(upload_id)
+    if duration_ms <= 0 or duration_ms > 15_000:
+        raise HTTPException(status_code=422, detail="duration_ms must be between 1 and 15000")
+    if total_chunks <= 0 or total_chunks > PENDANT_UPLOAD_MAX_CHUNKS:
+        raise HTTPException(status_code=422, detail="invalid total_chunks")
+    if chunk_index < 0 or chunk_index >= total_chunks:
+        raise HTTPException(status_code=422, detail="invalid chunk_index")
+
+    device = _device_or_404(device_id, db)
+    event = db.query(HeartbeatEvent).filter(
+        HeartbeatEvent.event_id == event_id,
+        HeartbeatEvent.receiver_id == device.user_id,
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="event not found for this device")
+
+    chunk = await request.body()
+    if not chunk or len(chunk) > PENDANT_UPLOAD_CHUNK_BYTES:
+        raise HTTPException(status_code=413, detail="chunk must be between 1 and 1024 bytes")
+
+    PENDANT_UPLOAD_STAGING_ROOT.mkdir(parents=True, exist_ok=True)
+    prefix = f"{device.id}-{event.id}-{upload_id}"
+    chunk_path = PENDANT_UPLOAD_STAGING_ROOT / f"{prefix}-{chunk_index:03d}.part"
+    chunk_path.write_bytes(chunk)
+
+    if chunk_index != total_chunks - 1:
+        return {"status": "chunk_received", "chunk_index": chunk_index}
+
+    chunk_paths = [PENDANT_UPLOAD_STAGING_ROOT / f"{prefix}-{index:03d}.part" for index in range(total_chunks)]
+    if any(not path.is_file() for path in chunk_paths):
+        raise HTTPException(status_code=409, detail="waiting for earlier chunks")
+
+    VOICE_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    stored_filename = f"{uuid.uuid4()}.wav"
+    file_path = VOICE_STORAGE_ROOT / stored_filename
+    total_bytes = 0
+    try:
+        with file_path.open("wb") as target:
+            for part_path in chunk_paths:
+                part = part_path.read_bytes()
+                total_bytes += len(part)
+                if total_bytes > Config.MAX_VOICE_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="voice file is too large")
+                target.write(part)
+    finally:
+        for part_path in chunk_paths:
+            part_path.unlink(missing_ok=True)
+
+    if total_bytes <= 44:
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="reply WAV is empty")
+
+    voice = VoiceRecord(
+        user_id=device.user_id,
+        file_url=stored_filename,
+        duration=max(1, duration_ms // 1000),
+    )
+    db.add(voice)
+    db.flush()
+    db.add(Response(
+        event_id=event.event_id,
+        from_user=device.user_id,
+        response_type="voice",
+        voice_id=voice.id,
+    ))
+    event.status = "replied"
+    db.commit()
+    background_tasks.add_task(_process_pendant_voice_reply, voice.id, str(file_path))
+    return {
+        "status": "accepted",
+        "event_id": event.event_id,
+        "voice_id": voice.id,
+        "chunks": total_chunks,
     }
 
 

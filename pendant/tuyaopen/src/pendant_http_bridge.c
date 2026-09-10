@@ -14,7 +14,7 @@
 
 #define HTTP_TIMEOUT_MS 15000U
 #define HTTP_POLL_MS    2500U
-#define MULTIPART_BOUNDARY "----gongzaiT5AIReply"
+#define PENDANT_UPLOAD_CHUNK_BYTES 1024U
 
 static THREAD_HANDLE sg_http_thread = NULL;
 static MUTEX_HANDLE sg_bridge_mutex = NULL;
@@ -324,77 +324,73 @@ static bool upload_voice_reply_now(
     uint32_t duration_ms
 )
 {
-    char path[256];
-    char prefix[384];
-    static const char suffix[] = "\r\n--" MULTIPART_BOUNDARY "--\r\n";
-    http_client_response_t response = {0};
+    char upload_id[72];
+    char path[384];
     http_client_header_t headers[2];
-    char content_type[96];
-    uint8_t *body;
-    size_t prefix_size;
-    size_t body_size;
+    uint8_t chunk[PENDANT_UPLOAD_CHUNK_BYTES];
+    uint32_t chunk_index;
+    uint32_t total_chunks;
+    uint32_t offset;
+    uint32_t remaining;
+    uint32_t chunk_size;
     http_client_status_t result;
-    bool ok;
 
     if (event_id == NULL || event_id[0] == '\0' || wav_data == NULL ||
         wav_size <= 44U || !network_is_up()) {
         return false;
     }
+    total_chunks = (wav_size + PENDANT_UPLOAD_CHUNK_BYTES - 1U) / PENDANT_UPLOAD_CHUNK_BYTES;
+    /* upload_id identifies one recording only; it has no user data and is
+     * constrained again by FastAPI before it is used in a staging filename. */
     (void)snprintf(
-        path, sizeof(path),
-        "/api/pendant/voice/upload?device_id=%s&event_id=%s&duration_ms=%u",
-        GONGZAI_PENDANT_DEVICE_ID, event_id, (unsigned int)duration_ms
+        upload_id, sizeof(upload_id), "t5-%lu-%u",
+        (unsigned long)tal_system_get_millisecond(), (unsigned int)(wav_size & 0xffffU)
     );
-    (void)snprintf(
-        prefix, sizeof(prefix),
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"file\"; filename=\"reply.wav\"\r\n"
-        "Content-Type: audio/wav\r\n\r\n",
-        MULTIPART_BOUNDARY
-    );
-    (void)snprintf(content_type, sizeof(content_type),
-                   "multipart/form-data; boundary=%s", MULTIPART_BOUNDARY);
-    prefix_size = strlen(prefix);
-    body_size = prefix_size + (size_t)wav_size + sizeof(suffix) - 1U;
-    /* The Wi-Fi send path on T5AI is not reliable when its source buffer is
-     * allocated in PSRAM: large multipart WAV requests can fail before any
-     * bytes reach FastAPI (C2/H0).  Keep recorded audio in PSRAM, but build
-     * the short-lived network packet in internal RAM for the actual send. */
-    body = tal_malloc(body_size);
-    if (body == NULL) {
-        PR_ERR("Unable to allocate reply upload body: %u bytes", (unsigned int)body_size);
-        return false;
-    }
-    memcpy(body, prefix, prefix_size);
-    memcpy(body + prefix_size, wav_data, wav_size);
-    memcpy(body + prefix_size + wav_size, suffix, sizeof(suffix) - 1U);
 
-    headers[0] = (http_client_header_t){.key = "Content-Type", .value = content_type};
+    headers[0] = (http_client_header_t){.key = "Content-Type", .value = "application/octet-stream"};
     headers[1] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
-    result = http_client_request(
-        &(const http_client_request_t){
-            .host = GONGZAI_API_HOST, .port = GONGZAI_API_PORT,
-            .method = "POST", .path = path, .headers = headers,
-            .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
-            .body = body, .body_length = body_size,
-            .timeout_ms = HTTP_TIMEOUT_MS,
-        }, &response
-    );
-    ok = result == HTTP_CLIENT_SUCCESS && response.status_code >= 200U && response.status_code < 300U;
-    if (bridge_lock()) {
-        sg_last_voice_upload_client_status = (int)result;
-        sg_last_voice_upload_http_status = response.status_code;
-        bridge_unlock();
+
+    for (chunk_index = 0U, offset = 0U; chunk_index < total_chunks; ++chunk_index) {
+        http_client_response_t response = {0};
+        remaining = wav_size - offset;
+        chunk_size = remaining > PENDANT_UPLOAD_CHUNK_BYTES ? PENDANT_UPLOAD_CHUNK_BYTES : remaining;
+        /* The recorder keeps audio in PSRAM.  Copy one small block to regular
+         * RAM before using the Wi-Fi client, avoiding a large PSRAM-backed
+         * multipart request that previously failed with C2/H0. */
+        memcpy(chunk, wav_data + offset, chunk_size);
+        (void)snprintf(
+            path, sizeof(path),
+            "/api/pendant/voice/chunk?device_id=%s&event_id=%s&upload_id=%s&chunk_index=%u&total_chunks=%u&duration_ms=%u",
+            GONGZAI_PENDANT_DEVICE_ID, event_id, upload_id,
+            (unsigned int)chunk_index, (unsigned int)total_chunks, (unsigned int)duration_ms
+        );
+        result = http_client_request(
+            &(const http_client_request_t){
+                .host = GONGZAI_API_HOST, .port = GONGZAI_API_PORT,
+                .method = "POST", .path = path, .headers = headers,
+                .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
+                .body = chunk, .body_length = chunk_size,
+                .timeout_ms = HTTP_TIMEOUT_MS,
+            }, &response
+        );
+        if (bridge_lock()) {
+            sg_last_voice_upload_client_status = (int)result;
+            sg_last_voice_upload_http_status = response.status_code;
+            bridge_unlock();
+        }
+        if (result != HTTP_CLIENT_SUCCESS || response.status_code < 200U || response.status_code >= 300U) {
+            PR_ERR("Pendant reply chunk %u/%u failed: client=%d status=%u",
+                   (unsigned int)(chunk_index + 1U), (unsigned int)total_chunks,
+                   result, response.status_code);
+            http_client_free(&response);
+            return false;
+        }
+        http_client_free(&response);
+        offset += chunk_size;
     }
-    if (ok) {
-        PR_NOTICE("Pendant voice reply uploaded: event=%s bytes=%u", event_id, wav_size);
-    } else {
-        PR_ERR("Pendant voice reply upload failed: event=%s client=%d status=%u",
-               event_id, result, response.status_code);
-    }
-    http_client_free(&response);
-    tal_free(body);
-    return ok;
+    PR_NOTICE("Pendant voice reply accepted: event=%s bytes=%u chunks=%u",
+              event_id, wav_size, (unsigned int)total_chunks);
+    return true;
 }
 
 static void post_queued_voice_upload(void)

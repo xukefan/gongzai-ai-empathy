@@ -326,7 +326,7 @@ static bool upload_voice_reply_now(
 {
     char upload_id[72];
     char path[384];
-    http_client_header_t headers[2];
+    http_client_header_t headers[1];
     uint8_t chunk[PENDANT_UPLOAD_CHUNK_BYTES];
     uint32_t chunk_index;
     uint32_t total_chunks;
@@ -347,8 +347,9 @@ static bool upload_voice_reply_now(
         (unsigned long)tal_system_get_millisecond(), (unsigned int)(wav_size & 0xffffU)
     );
 
-    headers[0] = (http_client_header_t){.key = "Content-Type", .value = "application/octet-stream"};
-    headers[1] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
+    /* Do not add Content-Type: FastAPI reads this endpoint as raw bytes and
+     * omitting it leaves enough room in T5AI's fixed HTTP header buffer. */
+    headers[0] = (http_client_header_t){.key = "X-Pendant-Token", .value = GONGZAI_PENDANT_API_TOKEN};
 
     for (chunk_index = 0U, offset = 0U; chunk_index < total_chunks; ++chunk_index) {
         http_client_response_t response = {0};
@@ -360,7 +361,7 @@ static bool upload_voice_reply_now(
         memcpy(chunk, wav_data + offset, chunk_size);
         (void)snprintf(
             path, sizeof(path),
-            "/api/pendant/voice/chunk?device_id=%s&event_id=%s&upload_id=%s&chunk_index=%u&total_chunks=%u&duration_ms=%u",
+            "/api/pvc?d=%s&e=%s&u=%s&i=%u&n=%u&t=%u",
             GONGZAI_PENDANT_DEVICE_ID, event_id, upload_id,
             (unsigned int)chunk_index, (unsigned int)total_chunks, (unsigned int)duration_ms
         );
@@ -368,7 +369,7 @@ static bool upload_voice_reply_now(
             &(const http_client_request_t){
                 .host = GONGZAI_API_HOST, .port = GONGZAI_API_PORT,
                 .method = "POST", .path = path, .headers = headers,
-                .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 1U : 2U,
+                .headers_count = GONGZAI_PENDANT_API_TOKEN[0] == '\0' ? 0U : 1U,
                 .body = chunk, .body_length = chunk_size,
                 .timeout_ms = HTTP_TIMEOUT_MS,
             }, &response

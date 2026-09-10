@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Request, UploadFile, File, Header
+from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query, Request, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
@@ -481,15 +481,18 @@ async def upload_pendant_voice_reply(
 
 
 @app.post("/api/pendant/voice/chunk", status_code=202)
+@app.post("/api/pvc", status_code=202, include_in_schema=False)
 async def upload_pendant_voice_chunk(
     request: Request,
     background_tasks: BackgroundTasks,
-    device_id: str,
-    event_id: str,
-    upload_id: str,
-    chunk_index: int,
-    total_chunks: int,
-    duration_ms: int,
+    # T5AI's stock HTTP wrapper has a small header serializer.  The short
+    # query aliases keep request-line + headers below that fixed limit.
+    device_id: str = Query(alias="d"),
+    event_id: str = Query(alias="e"),
+    upload_id: str = Query(alias="u"),
+    chunk_index: int = Query(alias="i"),
+    total_chunks: int = Query(alias="n"),
+    duration_ms: int = Query(alias="t"),
     x_pendant_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):

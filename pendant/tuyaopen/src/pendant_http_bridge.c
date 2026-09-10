@@ -356,7 +356,11 @@ static bool upload_voice_reply_now(
                    "multipart/form-data; boundary=%s", MULTIPART_BOUNDARY);
     prefix_size = strlen(prefix);
     body_size = prefix_size + (size_t)wav_size + sizeof(suffix) - 1U;
-    body = tal_psram_malloc(body_size);
+    /* The Wi-Fi send path on T5AI is not reliable when its source buffer is
+     * allocated in PSRAM: large multipart WAV requests can fail before any
+     * bytes reach FastAPI (C2/H0).  Keep recorded audio in PSRAM, but build
+     * the short-lived network packet in internal RAM for the actual send. */
+    body = tal_malloc(body_size);
     if (body == NULL) {
         PR_ERR("Unable to allocate reply upload body: %u bytes", (unsigned int)body_size);
         return false;
@@ -389,7 +393,7 @@ static bool upload_voice_reply_now(
                event_id, result, response.status_code);
     }
     http_client_free(&response);
-    tal_psram_free(body);
+    tal_free(body);
     return ok;
 }
 

@@ -8,7 +8,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PENDANT_RECORDER_MAX_DURATION_MS (15U * 1000U)
+/* A pendant reply is a concise voice note.  Keeping it short also ensures the
+ * multipart request fits comfortably in T5AI's internal network buffer. */
+#define PENDANT_RECORDER_MAX_DURATION_MS (6U * 1000U)
 #define PENDANT_RECORDER_WAV_URI "memory://gongzai-reply.wav"
 
 /**

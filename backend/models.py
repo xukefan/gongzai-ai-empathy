@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, DateTime, Text, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 from database import Base
 import uuid
@@ -58,12 +58,36 @@ class VoiceRecord(Base):
 class Moment(Base):
     __tablename__ = "moments"
     id = Column(String(36), primary_key=True, default=gen_uuid)
+    # event_id is the idempotency key shared by upload, ASR and AI processing.
+    event_id = Column(String(128), unique=True, index=True)
     user_id = Column(String(36), nullable=False)
     title = Column(String(100))
     summary = Column(Text)
+    # raw_text remains for compatibility with older clients. It mirrors the
+    # confirmed transcript for newly created AI moments.
     raw_text = Column(Text)
+    raw_transcript = Column(Text)
+    confirmed_transcript = Column(Text)
     voice_id = Column(String(36), ForeignKey("voice_records.id"))
-    status = Column(String(20), default="active")  # active/shared/responded/archived  ← 新增这一行
+    source = Column(String(20))
+    bpm = Column(Integer)
+    recorded_at = Column(DateTime)
+    tags = Column(JSON)
+    suggested_replies = Column(JSON)
+    safety_flags = Column(JSON)
+    ai_status = Column(String(30))
+    prompt_version = Column(String(50))
+    schema_version = Column(Integer, default=1)
+    image_urls = Column(JSON)
+    user_note = Column(Text)
+    # Set only when the owner explicitly shares this confirmed moment.
+    shared_at = Column(DateTime)
+    acknowledged_at = Column(DateTime)
+    reply_voice_id = Column(String(36), ForeignKey("voice_records.id"))
+    reply_raw_transcript = Column(Text)
+    reply_confirmed_transcript = Column(Text)
+    replied_at = Column(DateTime)
+    status = Column(String(20), default="active")  # active/shared/responded/archived
     created_at = Column(DateTime, server_default=func.now())
 
 class Response(Base):

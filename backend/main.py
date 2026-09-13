@@ -3,9 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_
+from typing import List, Optional
 import uuid
 from pathlib import Path
+from pydantic import BaseModel
+from datetime import date, datetime, timezone
 
 from database import get_db, engine
 from models import Base, User, Relationship, Device, HeartbeatEvent, VoiceRecord, Moment, Response, DoNotDisturbSetting
@@ -13,12 +16,16 @@ from schemas import *
 from tuya_client import TuyaClient
 from config import Config
 from ai_service import AIServiceError, generate_diary
+from recap_service import VALID_RECAP_PERIODS, build_recap
+from memory_search_service import search_memories
 from migrations import migrate_schema
+from migrations.migrate_moment_record_fields import migrate as migrate_moment_records
 from asr.asr_service import transcribe_event
 from asr_router import router as asr_router
 
 Base.metadata.create_all(bind=engine)
 migrate_schema(engine)
+migrate_moment_records()
 
 app = FastAPI(title="共感挂件后端API", version="1.0")
 app.include_router(asr_router)
@@ -105,25 +112,141 @@ def bind_device(req: DeviceBindRequest, db: Session = Depends(get_db)):
     
     return DeviceBindResponse(status="ok", message="绑定成功")
 
-@app.get("/api/timeline")
-def get_timeline(user_id: str, db: Session = Depends(get_db)):
-    events = db.query(HeartbeatEvent).filter(
-        (HeartbeatEvent.sender_id == user_id) | 
-        (HeartbeatEvent.receiver_id == user_id)
-    ).order_by(HeartbeatEvent.sent_at.desc()).limit(20).all()
-    
-    moments = []
-    for event in events:
-        response = db.query(Response).filter(Response.event_id == event.event_id).first()
-        moments.append({
-            "id": event.event_id,
-            "title": f"心率 {event.bpm} BPM",
-            "bpm": event.bpm,
-            "created_at": event.sent_at.isoformat(),
-            "response_status": "已回应" if response else "未回应"
-        })
-    
-    return {"moments": moments}
+def get_active_relationship(user_id: str, db: Session) -> Relationship:
+    """Return the user's active relationship or reject shared-data access."""
+    relationship = db.query(Relationship).filter(
+        or_(Relationship.user_a_id == user_id, Relationship.user_b_id == user_id),
+        Relationship.status == "active",
+    ).first()
+    if not relationship:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "TIMELINE_RELATIONSHIP_REQUIRED",
+                "message": "只有存在有效关系的用户才能访问共同时间线",
+                "retryable": False,
+                "schema_version": 1,
+            },
+        )
+    return relationship
+
+
+def get_visible_shared_moments_query(user_id: str, db: Session):
+    """Return the current partner and the query for mutually visible moments."""
+    relationship = get_active_relationship(user_id, db)
+    partner_id = relationship.user_b_id if relationship.user_a_id == user_id else relationship.user_a_id
+    query = db.query(Moment).filter(
+        Moment.user_id.in_([user_id, partner_id]),
+        Moment.status.in_(["shared", "responded"]),
+        Moment.confirmed_transcript.isnot(None),
+        Moment.confirmed_transcript != "",
+        Moment.shared_at.isnot(None),
+    )
+    return partner_id, query
+
+
+@app.post("/api/moments/{moment_id}/share", response_model=CommonResponse)
+def share_moment(moment_id: str, user_id: str, db: Session = Depends(get_db)):
+    """Explicitly publish one confirmed moment to the active shared timeline."""
+    get_active_relationship(user_id, db)
+    moment = db.query(Moment).filter(Moment.id == moment_id).first()
+    if not moment:
+        return CommonResponse(code=404, msg="生活瞬间不存在")
+    if moment.user_id != user_id:
+        raise HTTPException(status_code=403, detail="只能分享自己创建的生活瞬间")
+    if not moment.confirmed_transcript:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "TIMELINE_CONFIRMATION_REQUIRED",
+                "message": "只有确认后的转写才能进入共同时间线",
+                "retryable": False,
+                "schema_version": 1,
+            },
+        )
+    if moment.status == "archived":
+        raise HTTPException(status_code=409, detail="已归档的生活瞬间不能分享")
+    moment.status = "shared"
+    moment.shared_at = moment.shared_at or datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    db.refresh(moment)
+    return CommonResponse(code=0, msg="已分享到共同时间线", data=serialize_moment(moment))
+
+
+@app.get("/api/timeline", response_model=CommonResponse)
+def get_timeline(
+    user_id: str,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """Return only explicitly shared, confirmed moments for the user's partner pair."""
+    if limit < 1 or limit > 100 or offset < 0:
+        raise HTTPException(status_code=422, detail="limit must be 1..100 and offset must be non-negative")
+    partner_id, visible = get_visible_shared_moments_query(user_id, db)
+    visible = visible.order_by(
+        Moment.recorded_at.desc().nullslast(),
+        Moment.created_at.desc(),
+        Moment.id.desc(),
+    )
+    total = visible.count()
+    moments = visible.offset(offset).limit(limit).all()
+    return CommonResponse(
+        code=0,
+        msg="success",
+        data={
+            "user_id": user_id,
+            "partner_id": partner_id,
+            "total": total,
+            "moments": [serialize_moment(moment) for moment in moments],
+        },
+    )
+
+
+@app.get("/api/recaps/{period}", response_model=CommonResponse)
+def get_recap(
+    period: str,
+    user_id: str,
+    anchor_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
+    """Build a traceable factual recap from the caller's shared timeline."""
+    if period not in VALID_RECAP_PERIODS:
+        raise HTTPException(status_code=422, detail="period must be week, month, or anniversary")
+    if period == "anniversary" and anchor_date is None:
+        raise HTTPException(status_code=422, detail="anniversary requires anchor_date in YYYY-MM-DD format")
+    partner_id, visible = get_visible_shared_moments_query(user_id, db)
+    try:
+        recap = build_recap(period, visible.all(), anchor_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CommonResponse(
+        code=0,
+        msg="success",
+        data={"user_id": user_id, "partner_id": partner_id, **recap},
+    )
+
+
+@app.get("/api/memories/search", response_model=CommonResponse)
+def search_shared_memories(
+    user_id: str,
+    query: str,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    """Search only the caller's currently visible, confirmed shared records."""
+    normalized_query = query.strip()
+    if not normalized_query or len(normalized_query) > 200:
+        raise HTTPException(status_code=422, detail="query must contain 1 to 200 characters")
+    if limit < 1 or limit > 50:
+        raise HTTPException(status_code=422, detail="limit must be 1..50")
+    partner_id, visible = get_visible_shared_moments_query(user_id, db)
+    result = search_memories(normalized_query, visible.all(), limit)
+    return CommonResponse(
+        code=0,
+        msg="success",
+        data={"user_id": user_id, "partner_id": partner_id, **result},
+    )
 
 @app.get("/api/relationship/{user_id}")
 def get_relationship(user_id: str, db: Session = Depends(get_db)):
@@ -230,10 +353,9 @@ async def upload_voice(
     voice.transcription_provider = transcription.get("provider")
     voice.transcription_request_id = transcription.get("request_id")
     if voice.transcription_status == "completed":
-        from datetime import datetime
         voice.transcribed_at = datetime.utcnow()
     db.commit()
-    
+
     return {
         "voice_id": voice.id,
         "status": "uploaded",
@@ -274,10 +396,6 @@ def delete_voice(voice_id: str, user_id: str, db: Session = Depends(get_db)):
     return {"status": "deleted", "voice_id": voice_id}
 
 
-def _transcribe_voice_file(file_path: Path, voice_id: str, source: str, consent: bool) -> dict:
-    return transcribe_event(file_path, voice_id, source, consent, "zh-CN")
-
-
 async def _transcribe_voice(voice: VoiceRecord, source: str, consent: bool, db: Session) -> dict:
     file_path = (VOICE_STORAGE_ROOT / voice.file_url).resolve()
     if VOICE_STORAGE_ROOT not in file_path.parents or not file_path.is_file():
@@ -285,21 +403,26 @@ async def _transcribe_voice(voice: VoiceRecord, source: str, consent: bool, db: 
     voice.transcription_status = "processing"
     voice.transcription_error = None
     db.commit()
-    result = await run_in_threadpool(_transcribe_voice_file, file_path, voice.id, source, consent)
+    result = await run_in_threadpool(transcribe_event, file_path, voice.id, source, consent, "zh-CN")
     voice.transcript = result.get("transcript")
     voice.transcription_status = result.get("status", "failed")
     voice.transcription_error = result.get("error_message")
     voice.transcription_provider = result.get("provider")
     voice.transcription_request_id = result.get("request_id")
     if voice.transcription_status == "completed":
-        from datetime import datetime
         voice.transcribed_at = datetime.utcnow()
     db.commit()
     return result
 
 
 @app.post("/api/voice/{voice_id}/transcribe")
-async def transcribe_voice(voice_id: str, user_id: str, source: str = "watch", consent: bool = True, db: Session = Depends(get_db)):
+async def transcribe_voice(
+    voice_id: str,
+    user_id: str,
+    source: str = "watch",
+    consent: bool = True,
+    db: Session = Depends(get_db),
+):
     voice = get_voice_for_owner(voice_id, user_id, db)
     result = await _transcribe_voice(voice, source, consent, db)
     return {"voice_id": voice_id, **result}
@@ -333,7 +456,8 @@ def get_dnd(user_id: str, db: Session = Depends(get_db)):
 def unbind_relationship(user_id: str, db: Session = Depends(get_db)):
     rel = db.query(Relationship).filter(
         (Relationship.user_a_id == user_id) | 
-        (Relationship.user_b_id == user_id)
+        (Relationship.user_b_id == user_id),
+        Relationship.status == "active",
     ).first()
     
     if rel:
@@ -345,27 +469,55 @@ def unbind_relationship(user_id: str, db: Session = Depends(get_db)):
 
 # ========== 生活瞬间（Moments）接口 ==========
 
-from pydantic import BaseModel
-from typing import Optional
 
-# 在文件顶部（schemas.py 里已经有类似的，但为了独立，先在这里定义一个）
+def serialize_moment(moment: Moment) -> dict:
+    """Return the complete, traceable record for one life moment."""
+    def as_iso(value):
+        return value.isoformat() if value is not None else None
+
+    return {
+        "id": moment.id,
+        "event_id": moment.event_id,
+        "user_id": moment.user_id,
+        "title": moment.title,
+        "summary": moment.summary,
+        "raw_text": moment.raw_text,
+        "raw_transcript": moment.raw_transcript,
+        "confirmed_transcript": moment.confirmed_transcript,
+        "voice_id": moment.voice_id,
+        "source": moment.source,
+        "bpm": moment.bpm,
+        "recorded_at": as_iso(moment.recorded_at),
+        "tags": moment.tags or [],
+        "suggested_replies": moment.suggested_replies or [],
+        "safety_flags": moment.safety_flags or [],
+        "ai_status": moment.ai_status,
+        "prompt_version": moment.prompt_version,
+        "schema_version": moment.schema_version or 1,
+        "image_urls": moment.image_urls or [],
+        "user_note": moment.user_note,
+        "shared_at": as_iso(moment.shared_at),
+        "acknowledged_at": as_iso(moment.acknowledged_at),
+        "reply_voice_id": moment.reply_voice_id,
+        "reply_raw_transcript": moment.reply_raw_transcript,
+        "reply_confirmed_transcript": moment.reply_confirmed_transcript,
+        "replied_at": as_iso(moment.replied_at),
+        "status": moment.status,
+        "created_at": as_iso(moment.created_at),
+    }
+
+
 class CreateMomentRequest(BaseModel):
+    """Legacy manual-creation request retained for existing clients."""
     user_id: str
     title: str
     summary: str
     voice_id: Optional[str] = None
 
 
-class GenerateMomentRequest(BaseModel):
-    user_id: str
-    content: Optional[str] = None
-    voice_id: Optional[str] = None
-    bpm: Optional[int] = None
-
-
 @app.post("/api/moments/generate", response_model=CommonResponse)
 def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
-    """Generate and save a diary-style moment from user-approved content."""
+    """Generate and save a record from a user-confirmed ASR transcript."""
     voice = None
     if req.voice_id:
         voice = get_voice_for_owner(req.voice_id, req.user_id, db)
@@ -374,12 +526,30 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
         content = voice.transcript.strip()
     else:
         content = (req.content or "").strip()
+        if not req.consent:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "AI_CONSENT_REQUIRED",
+                    "message": "必须先由用户确认并授权转写文字，才能生成生活瞬间",
+                    "retryable": False,
+                    "schema_version": 1,
+                },
+            )
     if not content:
         raise HTTPException(status_code=422, detail="content must not be empty")
-    if len(content) > 10_000:
-        raise HTTPException(status_code=413, detail="content is too long")
-    if req.bpm is not None and not 30 <= req.bpm <= 240:
-        raise HTTPException(status_code=422, detail="bpm must be between 30 and 240")
+
+    event_id = req.event_id or str(uuid.uuid4())
+    existing = db.query(Moment).filter(
+        Moment.event_id == event_id,
+        Moment.user_id == req.user_id,
+    ).first()
+    if existing:
+        return CommonResponse(
+            code=0,
+            msg="生活瞬间已存在，返回已有记录",
+            data={**serialize_moment(existing), "idempotent_replay": True},
+        )
 
     try:
         diary = generate_diary(content, req.bpm)
@@ -396,11 +566,25 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
         ) from exc
 
     moment = Moment(
+        event_id=event_id,
         user_id=req.user_id,
         title=diary["title"],
         summary=diary["summary"],
+        raw_transcript=req.raw_transcript or content,
+        confirmed_transcript=content,
         raw_text=content,
-        voice_id=voice.id if voice else req.voice_id,
+        voice_id=req.voice_id,
+        source=req.source,
+        bpm=req.bpm,
+        recorded_at=req.recorded_at,
+        tags=diary.get("tags", []),
+        suggested_replies=diary.get("suggested_replies", []),
+        safety_flags=diary.get("safety_flags", []),
+        ai_status=diary.get("ai_status"),
+        prompt_version=diary.get("prompt_version"),
+        schema_version=diary.get("schema_version", req.schema_version),
+        image_urls=req.image_urls,
+        user_note=req.user_note,
     )
     db.add(moment)
     db.commit()
@@ -409,21 +593,7 @@ def generate_moment(req: GenerateMomentRequest, db: Session = Depends(get_db)):
     return CommonResponse(
         code=0,
         msg="AI日记已生成",
-        data={
-            "id": moment.id,
-            "user_id": moment.user_id,
-            "title": moment.title,
-            "summary": moment.summary,
-            "raw_text": moment.raw_text,
-            "voice_id": moment.voice_id,
-            "created_at": moment.created_at.isoformat(),
-            "ai_status": diary["ai_status"],
-            "tags": diary.get("tags", []),
-            "suggested_replies": diary.get("suggested_replies", []),
-            "safety_flags": diary.get("safety_flags", []),
-            "schema_version": diary.get("schema_version", 1),
-            "prompt_version": diary.get("prompt_version", "moment-v5"),
-        },
+        data={**serialize_moment(moment), "idempotent_replay": False},
     )
 
 
@@ -453,12 +623,7 @@ def create_moment(req: CreateMomentRequest, db: Session = Depends(get_db)):
     return CommonResponse(
         code=0,
         msg="创建成功",
-        data={
-            "id": moment.id,
-            "title": moment.title,
-            "summary": moment.summary,
-            "created_at": moment.created_at.isoformat()
-        }
+        data=serialize_moment(moment),
     )
 # 2. 查询单条生活瞬间
 @app.get("/api/moments/{moment_id}", response_model=CommonResponse)
@@ -472,15 +637,7 @@ def get_moment(moment_id: str, db: Session = Depends(get_db)):
     return CommonResponse(
         code=0,
         msg="success",
-        data={
-            "id": moment.id,
-            "user_id": moment.user_id,
-            "title": moment.title,
-            "summary": moment.summary,
-            "raw_text": moment.raw_text,
-            "voice_id": moment.voice_id,
-            "created_at": moment.created_at.isoformat()
-        }
+        data=serialize_moment(moment),
     )
 
 
@@ -508,13 +665,7 @@ def get_moments_by_user(
     
     data = []
     for m in moments:
-        data.append({
-            "id": m.id,
-            "title": m.title,
-            "summary": m.summary,
-            "voice_id": m.voice_id,
-            "created_at": m.created_at.isoformat()
-        })
+        data.append(serialize_moment(m))
     
     return CommonResponse(
         code=0,

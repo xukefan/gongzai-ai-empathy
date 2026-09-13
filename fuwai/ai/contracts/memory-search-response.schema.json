@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/memory-search-response.schema.json",
+  "title": "Private Memory Search Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "msg", "data"],
+  "properties": {
+    "code": {"type": "integer", "const": 0},
+    "msg": {"type": "string"},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_id", "partner_id", "query", "query_terms", "total", "results", "search_method", "schema_version"],
+      "properties": {
+        "user_id": {"type": "string", "minLength": 1},
+        "partner_id": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1, "maxLength": 200},
+        "query_terms": {"type": "array", "items": {"type": "string"}},
+        "total": {"type": "integer", "minimum": 0},
+        "results": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "event_id", "title", "summary", "confirmed_transcript", "recorded_at", "tags", "score", "matched_fields"],
+            "properties": {
+              "id": {"type": "string"},
+              "event_id": {"type": ["string", "null"]},
+              "title": {"type": ["string", "null"]},
+              "summary": {"type": ["string", "null"]},
+              "confirmed_transcript": {"type": ["string", "null"]},
+              "recorded_at": {"type": "string", "format": "date-time"},
+              "tags": {"type": "array", "items": {"type": "string"}},
+              "score": {"type": "integer", "minimum": 1},
+              "matched_fields": {"type": "array", "items": {"type": "string", "enum": ["title", "summary", "confirmed_transcript", "tags"]}}
+            }
+          }
+        },
+        "search_method": {"type": "string", "const": "local_lexical_semantic_v1"},
+        "schema_version": {"type": "integer", "const": 1}
+      }
+    }
+  }
+}

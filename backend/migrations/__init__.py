@@ -1,9 +1,10 @@
-"""Small idempotent migrations for the development-to-production database."""
+"""Idempotent database migrations for the backend service."""
 
 from sqlalchemy import inspect, text
 
 
 def migrate_schema(engine) -> None:
+    """Add the voice-transcription columns required by the ASR lifecycle."""
     inspector = inspect(engine)
     if "voice_records" not in inspector.get_table_names():
         return

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/timeline-response.schema.json",
+  "title": "Shared Timeline Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "msg", "data"],
+  "properties": {
+    "code": {"type": "integer", "const": 0},
+    "msg": {"type": "string"},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_id", "partner_id", "total", "moments"],
+      "properties": {
+        "user_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "partner_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "total": {"type": "integer", "minimum": 0},
+        "moments": {
+          "type": "array",
+          "items": {"$ref": "life-moment-record.schema.json"}
+        }
+      }
+    }
+  }
+}

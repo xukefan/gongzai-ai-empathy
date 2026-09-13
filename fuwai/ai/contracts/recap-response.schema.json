@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gongzai-ai.local/schemas/recap-response.schema.json",
+  "title": "Traceable Shared Recap Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "msg", "data"],
+  "properties": {
+    "code": {"type": "integer", "const": 0},
+    "msg": {"type": "string"},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_id", "partner_id", "period", "anchor_date", "period_start", "period_end", "total_moments", "recorded_dates", "topics", "fact_summary", "representative_events", "source_event_ids", "generation_method", "schema_version"],
+      "properties": {
+        "user_id": {"type": "string", "minLength": 1},
+        "partner_id": {"type": "string", "minLength": 1},
+        "period": {"type": "string", "enum": ["week", "month", "anniversary"]},
+        "anchor_date": {"type": "string", "format": "date"},
+        "period_start": {"type": ["string", "null"], "format": "date-time"},
+        "period_end": {"type": ["string", "null"], "format": "date-time"},
+        "total_moments": {"type": "integer", "minimum": 0},
+        "recorded_dates": {"type": "array", "items": {"type": "string", "format": "date"}},
+        "topics": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["tag", "count"], "properties": {"tag": {"type": "string"}, "count": {"type": "integer", "minimum": 1}}}},
+        "fact_summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "representative_events": {"type": "array", "maxItems": 3, "items": {"type": "object", "additionalProperties": false, "required": ["id", "event_id", "title", "summary", "recorded_at", "tags"], "properties": {"id": {"type": "string"}, "event_id": {"type": ["string", "null"]}, "title": {"type": ["string", "null"]}, "summary": {"type": ["string", "null"]}, "recorded_at": {"type": "string", "format": "date-time"}, "tags": {"type": "array", "items": {"type": "string"}}}}},
+        "source_event_ids": {"type": "array", "items": {"type": "string"}},
+        "generation_method": {"type": "string", "const": "deterministic_fact_aggregation"},
+        "schema_version": {"type": "integer", "const": 1}
+      }
+    }
+  }
+}
